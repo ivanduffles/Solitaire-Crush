@@ -255,7 +255,14 @@ function handlePointerUp(event) {
       state.dragState = null;
       return;
     }
-    if (card && (state.bombMode || card.isBomb)) {
+    if (
+      !state.activeSelection &&
+      !state.swapMode &&
+      !state.swapperActive &&
+      !state.pendingSwap &&
+      card &&
+      (state.bombMode || card.isBomb)
+    ) {
       const now = performance.now();
       if (
         state.lastTap &&
@@ -404,8 +411,10 @@ function handleSwapperSwap(row, col) {
   }
 
   const swapperCard = state.grid[sourceRow][sourceCol];
+  const isAdjacent =
+    Math.abs(sourceRow - row) + Math.abs(sourceCol - col) === 1;
   swapCards(sourceRow, sourceCol, row, col);
-  if (swapperCard) {
+  if (swapperCard && !isAdjacent) {
     swapperCard.isSwapper = false;
   }
   state.swapperActive = false;
