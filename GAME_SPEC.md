@@ -7,7 +7,7 @@ Single-player, mobile-first card puzzle game inspired by Buraco sequences with m
 
 ## Core Objective
 - Score points by forming and clearing valid sequences.
-- The game ends if the grid is full (7×7) and the player makes a move that **does not remove cards**, causing the next card drop to have no empty slot.
+- The game ends only when a card drop is required and there is no empty slot available. If a clear opens space, play continues normally even if the grid was previously full.
 
 ---
 
@@ -16,6 +16,7 @@ Single-player, mobile-first card puzzle game inspired by Buraco sequences with m
 - **Initial state:** Bottom 3 rows filled; top 4 rows empty.
 - **Deck:** Two standard decks (108 cards).
 - **Deck flow:** Shuffle once and deal in order. When depleted, generate a new 108-card deck, tag specials, shuffle, continue from current grid state (no reset).
+- **Special tagging:** Each new deck contains 20 total special cards: 10 bomb cards and 10 swapper cards. No card can be tagged as both.
 
 ---
 
@@ -29,14 +30,16 @@ Single-player, mobile-first card puzzle game inspired by Buraco sequences with m
 - **Consecutive ranks required:** Examples:  
   - Valid: `A-K-Q`, `Q-K-A`, `5-6-7`
   - Invalid: `5-6-8`, `10-9-7`
+- Allowed sequences exist within `A-2-3-4-5-6-7-8-9-10-J-Q-K-A`. `K-A-2` is invalid.
 
 ### Ace
 Ace can be used at **either end** of a sequence (A-2-3 or Q-K-A).
 
 ### Jokers / 2s
 - Jokers and 2s can act as wilds.
-- **Only 1 wild per sequence.**
-- A 2 can be natural (as “2”), in which case another joker (Joker or a 2) can still be used as a wild in the same sequence.
+- **Only 1 wildcard per sequence.**
+- A 2 can be natural (as “2”), in which case another Joker or 2 may be used as the single wildcard in the same sequence.
+- Example intent: `A-2-3-4-2` is valid (one natural 2 and one wildcard 2). `A-2-2-4` is valid if the second 2 substitutes a 3. `3-4-2-2` and `3-4-2-C` (C = Joker) are invalid.
 
 ---
 
@@ -52,20 +55,23 @@ Ace can be used at **either end** of a sequence (A-2-3 or Q-K-A).
 - Double tap to clear the selected sequence.
 - Clearing removes the cards; cards above fall by `sequence_length` slots (gravity).
   - **Vertical clear:** Cards above fall by the cleared length.
-  - **Horizontal clear:** Cards above fall by the cleared length (typically 1).
+  - **Horizontal clear:** Cards above each cleared card fall by 1 slot (one per affected column). Example: clearing (0,0)-(0,2) drops all cards in columns 0–2 down by one row.
+- After any removal, affected columns collapse to fill empty slots below (no gaps remain within a column).
+- Invalid selections are rejected on release; subsequences inside invalid selections do not count.
+- Selection shape is a straight orthogonal line only. The selection grows or shrinks only along the vector defined by the first two legal tiles.
 
 ---
 
 ## Spawning / Card Drops
 - **Exactly one card drops** after each move or clear (including swaps and bombs).
-- The card lands in a **random empty slot** in the **lowest available row**.
+- The card lands in a **random empty slot** in the **lowest row that has at least one empty slot**.
 
 ---
 
 ## Scoring
 ### Base Value
 - **Base factor starts at 10.**
-- Score = `sequence_length × base_factor`.
+- Score = `sequence_length × base_factor × chain_multiplier × canastra_bonus`.
 - Base factor increases by +1 **after every sequence cleared** (global, persistent for the run).
 
 ### Chain Multiplier
@@ -84,6 +90,7 @@ Three consecutive clears of lengths 3, 5, 4 with no moves between:
 - `3 × 10 × 1`
 - `5 × 11 × 2`
 - `4 × 12 × 3`
+Note: Base increments immediately after scoring the current sequence.
 
 ---
 
@@ -95,6 +102,7 @@ Three consecutive clears of lengths 3, 5, 4 with no moves between:
 - Swapping with a bomb does not alter the bomb status.
 - Swapping with another swapper does not remove the other swapper’s status.
 - Adjacent swapper cards moved via normal 1-tile swap do **not** lose swapper status.
+- Swappers can participate in sequences as their normal rank/suit; if cleared in a sequence they are removed like any other card.
 
 ### Free Swaps (3 total)
 - Tap “Swap” button, then select two cards to swap.
@@ -104,6 +112,7 @@ Three consecutive clears of lengths 3, 5, 4 with no moves between:
 - Tagged in the UI.
 - Double tap bomb to clear itself only (no splash).
 - Bomb clear yields **no points**.
+- Bombs can participate in sequences as their normal rank/suit; if cleared in a sequence they are removed like any other card.
 
 ### Free Bombs (3 total)
 - Tap “Bomb” button, then double tap any card to clear it.
