@@ -245,6 +245,7 @@ function handlePointerUp(event) {
         now - state.lastTap.time < 400
       ) {
         state.lastTap = null;
+        state.dragState = null;
         clearSelectedSequence();
         return;
       }
@@ -263,6 +264,7 @@ function handlePointerUp(event) {
         now - state.lastTap.time < 400
       ) {
         state.lastTap = null;
+        state.dragState = null;
         clearSingleCard(row, col, state.bombMode);
         return;
       }
