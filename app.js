@@ -194,6 +194,9 @@ function handlePointerDown(event) {
   if (state.gameOver) {
     return;
   }
+  if (state.bombMode) {
+    return;
+  }
   const row = Number(event.currentTarget.dataset.row);
   const col = Number(event.currentTarget.dataset.col);
   state.dragState = {
@@ -252,52 +255,33 @@ function handlePointerUp(event) {
       state.dragState = null;
       return;
     }
-    if (!state.swapMode && !state.swapperActive && !state.pendingSwap && card) {
-      if (state.bombMode) {
-        const now = performance.now();
-        if (
-          state.lastTap &&
-          state.lastTap.row === row &&
-          state.lastTap.col === col &&
-          now - state.lastTap.time < 400
-        ) {
-          state.lastTap = null;
-          state.dragState = null;
-          clearSingleCard(row, col, true);
-          return;
-        }
-        state.lastTap = { row, col, time: now };
-        statusEl.textContent = "Bomb ready: double tap to clear.";
-        renderBoard();
+    if (
+      !state.activeSelection &&
+      !state.swapMode &&
+      !state.swapperActive &&
+      !state.pendingSwap &&
+      card &&
+      (state.bombMode || card.isBomb)
+    ) {
+      const now = performance.now();
+      if (
+        state.lastTap &&
+        state.lastTap.row === row &&
+        state.lastTap.col === col &&
+        now - state.lastTap.time < 400
+      ) {
+        state.lastTap = null;
         state.dragState = null;
+        clearSingleCard(row, col, state.bombMode);
         return;
       }
-      if (card.isBomb) {
-        const isSameSelection =
-          state.activeSelection &&
-          state.activeSelection.row === row &&
-          state.activeSelection.col === col;
-        const now = performance.now();
-        if (
-          state.lastTap &&
-          state.lastTap.row === row &&
-          state.lastTap.col === col &&
-          now - state.lastTap.time < 400 &&
-          (!state.activeSelection || isSameSelection)
-        ) {
-          state.lastTap = null;
-          state.dragState = null;
-          clearSingleCard(row, col, false);
-          return;
-        }
-        if (!state.activeSelection || isSameSelection) {
-          state.lastTap = { row, col, time: now };
-        }
-      }
+      state.lastTap = { row, col, time: now };
+      statusEl.textContent = "Bomb ready: double tap to clear.";
+      renderBoard();
+      state.dragState = null;
+      return;
     }
-    if (!card || !card.isBomb) {
-      state.lastTap = null;
-    }
+    state.lastTap = null;
     handleTapSwap(row, col);
   } else {
     if (state.sequenceValid && state.sequenceSelection.length >= 3) {
