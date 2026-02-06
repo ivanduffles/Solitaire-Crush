@@ -255,7 +255,14 @@ function handlePointerUp(event) {
       state.dragState = null;
       return;
     }
-    if (!state.activeSelection && card && (state.bombMode || card.isBomb)) {
+    if (
+      !state.activeSelection &&
+      !state.swapMode &&
+      !state.swapperActive &&
+      !state.pendingSwap &&
+      card &&
+      (state.bombMode || card.isBomb)
+    ) {
       const now = performance.now();
       if (
         state.lastTap &&
