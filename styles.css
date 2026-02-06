@@ -1,0 +1,142 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Inter", system-ui, sans-serif;
+  background: #0f172a;
+  color: #e2e8f0;
+  display: flex;
+  justify-content: center;
+  padding: 24px;
+}
+
+.app {
+  width: min(480px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.hud {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.hud__meta {
+  display: flex;
+  gap: 16px;
+  font-size: 14px;
+}
+
+.hud__meta > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.hud__score {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.hud__label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #94a3b8;
+}
+
+.hud__counts {
+  display: flex;
+  gap: 8px;
+}
+
+.hud__button {
+  background: #1e293b;
+  color: #e2e8f0;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.hud__button[aria-pressed="true"] {
+  background: #2563eb;
+  border-color: #1d4ed8;
+}
+
+.board {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 8px;
+  background: #111827;
+  padding: 12px;
+  border-radius: 16px;
+  border: 1px solid #1f2937;
+}
+
+.card {
+  aspect-ratio: 3 / 4;
+  background: #1f2937;
+  border-radius: 12px;
+  border: 1px solid #334155;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 14px;
+  color: #f8fafc;
+  position: relative;
+  cursor: pointer;
+  user-select: none;
+  background-size: cover;
+  background-position: center;
+}
+
+.card--empty {
+  background: #0b1120;
+  border-style: dashed;
+  color: transparent;
+  cursor: default;
+}
+
+.card--sprite {
+  color: transparent;
+  text-shadow: none;
+}
+
+.card--selected {
+  outline: 2px solid #38bdf8;
+  outline-offset: 2px;
+}
+
+.card--pending {
+  outline: 2px solid #f59e0b;
+  outline-offset: 2px;
+}
+
+.card--swapper {
+  outline: 2px solid #22c55e;
+  outline-offset: 2px;
+}
+
+.badge {
+  position: absolute;
+  bottom: 6px;
+  right: 6px;
+  font-size: 10px;
+  background: rgba(15, 23, 42, 0.8);
+  padding: 2px 4px;
+  border-radius: 6px;
+}
+
+.status {
+  font-size: 14px;
+  color: #94a3b8;
+}
