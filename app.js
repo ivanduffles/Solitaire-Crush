@@ -23,6 +23,7 @@ const state = {
   swapperSource: null,
   gameOver: false,
   dragState: null,
+  lastTap: null,
 };
 
 const boardEl = document.getElementById("board");
@@ -193,7 +194,7 @@ function handlePointerDown(event) {
   if (state.gameOver) {
     return;
   }
-  if (state.swapMode || state.bombMode) {
+  if (state.bombMode) {
     return;
   }
   const row = Number(event.currentTarget.dataset.row);
@@ -207,6 +208,9 @@ function handlePointerDown(event) {
 
 function handlePointerEnter(event) {
   if (!state.dragState || state.gameOver) {
+    return;
+  }
+  if (state.swapMode || state.bombMode) {
     return;
   }
   const row = Number(event.currentTarget.dataset.row);
@@ -226,8 +230,49 @@ function handlePointerUp(event) {
   const { moved } = state.dragState;
   const row = Number(event.currentTarget.dataset.row);
   const col = Number(event.currentTarget.dataset.col);
+  const card = state.grid[row][col];
 
   if (!moved) {
+    const isInSequence = state.sequenceSelection.some(
+      (cell) => cell.row === row && cell.col === col
+    );
+    if (state.sequenceValid && state.sequenceSelection.length >= 3 && isInSequence) {
+      const now = performance.now();
+      if (
+        state.lastTap &&
+        state.lastTap.row === row &&
+        state.lastTap.col === col &&
+        now - state.lastTap.time < 400
+      ) {
+        state.lastTap = null;
+        clearSelectedSequence();
+        return;
+      }
+      state.lastTap = { row, col, time: now };
+      statusEl.textContent = "Sequence selected. Double tap to clear.";
+      renderBoard();
+      state.dragState = null;
+      return;
+    }
+    if (card && (state.bombMode || card.isBomb)) {
+      const now = performance.now();
+      if (
+        state.lastTap &&
+        state.lastTap.row === row &&
+        state.lastTap.col === col &&
+        now - state.lastTap.time < 400
+      ) {
+        state.lastTap = null;
+        clearSingleCard(row, col, state.bombMode);
+        return;
+      }
+      state.lastTap = { row, col, time: now };
+      statusEl.textContent = "Bomb ready: double tap to clear.";
+      renderBoard();
+      state.dragState = null;
+      return;
+    }
+    state.lastTap = null;
     handleTapSwap(row, col);
   } else {
     if (state.sequenceValid && state.sequenceSelection.length >= 3) {
@@ -261,7 +306,7 @@ function handleTapSwap(row, col) {
     return;
   }
 
-  if (state.grid[row][col].isSwapper) {
+  if (!state.activeSelection && state.grid[row][col].isSwapper) {
     state.swapperActive = true;
     state.swapperSource = { row, col };
     statusEl.textContent = "Swapper active: select any card to swap.";
@@ -421,6 +466,9 @@ function updateSequenceSelection() {
   if (!state.dragState) {
     return;
   }
+  if (state.swapMode || state.bombMode) {
+    return;
+  }
   const { start, current } = state.dragState;
   if (start.row !== current.row && start.col !== current.col) {
     state.sequenceSelection = [];
@@ -571,6 +619,7 @@ function dropCard() {
 function clearSequenceSelection() {
   state.sequenceSelection = [];
   state.sequenceValid = false;
+  state.lastTap = null;
 }
 
 function clearSingleCard(row, col, consumesFreeBomb) {
