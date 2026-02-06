@@ -194,9 +194,6 @@ function handlePointerDown(event) {
   if (state.gameOver) {
     return;
   }
-  if (state.bombMode) {
-    return;
-  }
   const row = Number(event.currentTarget.dataset.row);
   const col = Number(event.currentTarget.dataset.col);
   state.dragState = {
@@ -275,23 +272,32 @@ function handlePointerUp(event) {
         state.dragState = null;
         return;
       }
-      if (card.isBomb && !state.activeSelection) {
+      if (card.isBomb) {
+        const isSameSelection =
+          state.activeSelection &&
+          state.activeSelection.row === row &&
+          state.activeSelection.col === col;
         const now = performance.now();
         if (
           state.lastTap &&
           state.lastTap.row === row &&
           state.lastTap.col === col &&
-          now - state.lastTap.time < 400
+          now - state.lastTap.time < 400 &&
+          (!state.activeSelection || isSameSelection)
         ) {
           state.lastTap = null;
           state.dragState = null;
           clearSingleCard(row, col, false);
           return;
         }
-        state.lastTap = { row, col, time: now };
+        if (!state.activeSelection || isSameSelection) {
+          state.lastTap = { row, col, time: now };
+        }
       }
     }
-    state.lastTap = null;
+    if (!card || !card.isBomb) {
+      state.lastTap = null;
+    }
     handleTapSwap(row, col);
   } else {
     if (state.sequenceValid && state.sequenceSelection.length >= 3) {
