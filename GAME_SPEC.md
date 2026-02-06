@@ -120,8 +120,46 @@ Three consecutive clears of lengths 3, 5, 4 with no moves between:
 - Primary interaction: tap adjacent cards to swap.
 - Sequence selection: drag to select, then double tap to clear.
 - No hints or tutorial for the prototype.
+- Prototype loads directly into an active match (no main menu/lobby screen).
 
 ---
 
 ## Persistence
 No persistence in the prototype (scores and stats are not saved).
+
+---
+
+## Systems Plan (Prototype Architecture)
+### State Model
+- **Grid:** 7×7 array of card objects or empty.
+- **Deck:** current shuffled 108-card stack (replenishes when empty).
+- **Special inventory:** `freeSwapCount = 3`, `freeBombCount = 3`.
+- **Scoring:** `baseFactor = 10`, `chainMultiplier = 1`, `totalScore`.
+- **Run status:** `gameOver` boolean.
+
+### Core Modules
+- **Deck Manager:** builds deck, tags 10 swapper + 10 bomb cards (no overlap), shuffles, and deals.
+- **Grid Manager:** handles swaps, clears, gravity, and spawn placement in lowest available row.
+- **Sequence Validator:** validates straight-line selections against suit + rank rules and joker limits.
+- **Scoring Engine:** applies base factor, chain multiplier, and clean canastra bonus.
+- **Input Controller:** maps taps/drag/double-tap to swaps, selections, clears, and specials.
+- **UI Layer:** renders grid, selection highlights, special icons, score, and inventory counts.
+
+### Critical Flows
+- **Move flow:** swap adjacent cards → resolve gravity (if empty slots) → spawn 1 card → check game over.
+- **Clear flow:** validate selection → remove cards → resolve gravity → update score and counters → spawn 1 card → check game over.
+- **Bomb flow:** clear single card → resolve gravity → spawn 1 card → reset chain.
+
+---
+
+## Asset & UI Checklist (Prototype)
+### Immediate Placeholders
+- Text card labels (e.g., “A♠”, “9♥”) for early logic validation.
+- Simple button states for Swap and Bomb (enabled/disabled).
+
+### Near-Term Art Needs
+- **Card faces:** 52 unique cards (can be reused across both decks).
+- **Card back:** single asset.
+- **Special overlays:** swapper icon, bomb icon.
+- **Buttons:** swap and bomb (pressed/unpressed/disabled).
+- **Selection VFX:** highlight outline and clear animation.
