@@ -5,6 +5,42 @@ const RANKS = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"]
 
 const ASSET_MODE = "text";
 
+const SUIT_SVGS = {
+  "♠": (color) => `
+    <svg viewBox="0 0 64 64" aria-hidden="true">
+      <path fill="${color}" d="M32 4C21 18 8 26 8 40c0 10 8 18 18 18 5 0 9-2 12-6 3 4 7 6 12 6 10 0 18-8 18-18C68 26 43 18 32 4z"/>
+      <path fill="${color}" d="M36 50c0 6 3 9 6 10v4H22v-4c3-1 6-4 6-10h8z"/>
+    </svg>
+  `,
+  "♥": (color) => `
+    <svg viewBox="0 0 64 64" aria-hidden="true">
+      <path fill="${color}" d="M32 58C16 44 6 34 6 22 6 14 12 8 20 8c6 0 10 3 12 7 2-4 6-7 12-7 8 0 14 6 14 14 0 12-10 22-26 36z"/>
+    </svg>
+  `,
+  "♦": (color) => `
+    <svg viewBox="0 0 64 64" aria-hidden="true">
+      <path fill="${color}" d="M32 4l20 28-20 28L12 32 32 4z"/>
+    </svg>
+  `,
+  "♣": (color) => `
+    <svg viewBox="0 0 64 64" aria-hidden="true">
+      <circle cx="22" cy="24" r="12" fill="${color}" />
+      <circle cx="42" cy="24" r="12" fill="${color}" />
+      <circle cx="32" cy="40" r="12" fill="${color}" />
+      <path fill="${color}" d="M36 44c0 6 3 9 6 10v4H22v-4c3-1 6-4 6-10h8z"/>
+    </svg>
+  `,
+};
+
+const JOKER_HAT_SVG = `
+  <svg viewBox="0 0 64 64" aria-hidden="true">
+    <path fill="#808080" d="M10 40c10-12 18-18 26-18 8 0 16 6 18 12l-6 4c-2-4-6-6-10-6-6 0-12 6-18 16L10 40z"/>
+    <path fill="#b0b0b0" d="M16 44c6-8 12-12 18-12 6 0 12 4 14 8l-4 3c-2-3-6-5-10-5-4 0-9 4-14 10l-4-4z"/>
+    <circle cx="52" cy="28" r="4" fill="#808080"/>
+    <circle cx="18" cy="52" r="4" fill="#808080"/>
+  </svg>
+`;
+
 const state = {
   grid: [],
   deck: [],
@@ -25,6 +61,7 @@ const state = {
   gameOver: false,
   dragState: null,
   lastTap: null,
+  animateMoves: false,
 };
 
 const boardEl = document.getElementById("board");
@@ -36,7 +73,7 @@ const chainValueEl = document.getElementById("chainValue");
 const statusEl = document.getElementById("statusMessage");
 const freeSwapButton = document.getElementById("freeSwapButton");
 const freeBombButton = document.getElementById("freeBombButton");
-const DRAG_THRESHOLD = 6;
+const SWIPE_THRESHOLD_RATIO = 1;
 
 function buildDeck() {
   const deck = [];
@@ -128,7 +165,53 @@ function getCardAssetKey(card) {
   return `${card.rank.toLowerCase()}_of_${suitName}`;
 }
 
+function getSuitColor(suit) {
+  if (suit === "♥" || suit === "♦") {
+    return { className: "card--red", color: "#f70909" };
+  }
+  return { className: "card--black", color: "#010e1e" };
+}
+
+function buildStandardCardContent(card) {
+  const wrapper = document.createElement("div");
+  wrapper.className = "card__content";
+
+  const rankEl = document.createElement("div");
+  rankEl.className = "card__rank";
+  rankEl.textContent = card.rank;
+
+  const suitEl = document.createElement("div");
+  suitEl.className = "card__suit";
+  const suitSvg = SUIT_SVGS[card.suit];
+  const { color } = getSuitColor(card.suit);
+  if (suitSvg) {
+    suitEl.innerHTML = suitSvg(color);
+  } else {
+    suitEl.textContent = card.suit;
+  }
+
+  wrapper.append(rankEl, suitEl);
+  return wrapper;
+}
+
+function buildJokerCardContent() {
+  const wrapper = document.createElement("div");
+  wrapper.className = "card__content card__content--joker";
+
+  const jokerText = document.createElement("div");
+  jokerText.className = "card__joker-text";
+  jokerText.textContent = "JOKER";
+
+  const jokerIcon = document.createElement("div");
+  jokerIcon.className = "card__joker-icon";
+  jokerIcon.innerHTML = JOKER_HAT_SVG;
+
+  wrapper.append(jokerText, jokerIcon);
+  return wrapper;
+}
+
 function renderBoard() {
+  const prevRects = state.animateMoves ? getCardRects() : null;
   boardEl.innerHTML = "";
   const selectedSet = new Set(
     state.sequenceSelection.map(({ row, col }) => `${row}-${col}`)
@@ -145,6 +228,7 @@ function renderBoard() {
         cell.classList.add("card--empty");
         cell.textContent = "·";
       } else {
+        cell.dataset.cardId = card.id;
         if (ASSET_MODE === "sprite") {
           const assetKey = getCardAssetKey(card);
           if (assetKey) {
@@ -152,7 +236,14 @@ function renderBoard() {
             cell.style.backgroundImage = `url(assets/cards/${assetKey}.png)`;
           }
         }
-        cell.textContent = `${card.rank}${card.suit}`;
+        if (card.rank === "Joker") {
+          cell.classList.add("card--joker");
+          cell.appendChild(buildJokerCardContent());
+        } else {
+          const { className } = getSuitColor(card.suit);
+          cell.classList.add(className);
+          cell.appendChild(buildStandardCardContent(card));
+        }
         if (card.isBomb) {
           cell.insertAdjacentHTML("beforeend", `<span class="badge">B</span>`);
         }
@@ -190,6 +281,10 @@ function renderBoard() {
       boardEl.appendChild(cell);
     }
   }
+  if (prevRects) {
+    requestAnimationFrame(() => animateCardMoves(prevRects));
+  }
+  state.animateMoves = false;
 }
 
 function handlePointerDown(event) {
@@ -216,6 +311,7 @@ function handlePointerDown(event) {
     pointerId: event.pointerId,
     cardEl: dragDisabled ? null : event.currentTarget,
     moved: false,
+    swiped: false,
   };
   event.currentTarget.setPointerCapture(event.pointerId);
   if (!dragDisabled) {
@@ -252,24 +348,25 @@ function handlePointerMove(event) {
   }
   const deltaX = event.clientX - startX;
   const deltaY = event.clientY - startY;
-  if (!state.dragState.moved) {
-    const distance = Math.hypot(deltaX, deltaY);
-    if (distance >= DRAG_THRESHOLD) {
-      state.dragState.moved = true;
-    } else {
-      return;
-    }
+  if (state.dragState.swiped) {
+    return;
   }
-  const hoverTarget = document.elementFromPoint(event.clientX, event.clientY);
-  const cardTarget = hoverTarget?.closest?.(".card");
-  if (cardTarget) {
-    const row = Number(cardTarget.dataset.row);
-    const col = Number(cardTarget.dataset.col);
-    if (!Number.isNaN(row) && !Number.isNaN(col)) {
-      state.dragState.current = { row, col };
-    }
+  const threshold = getSwipeThreshold(cardEl, deltaX, deltaY);
+  if (Math.abs(threshold.distance) < threshold.minimum) {
+    return;
   }
-  cardEl.style.transform = `translate(${deltaX}px, ${deltaY}px) scale(1.03)`;
+  state.dragState.moved = true;
+  state.dragState.swiped = true;
+  const swipeTarget = getSwipeTarget(state.dragState.start, deltaX, deltaY);
+  if (!swipeTarget) {
+    clearDragVisual();
+    state.dragState = null;
+    return;
+  }
+  handleDragSwap(swipeTarget.row, swipeTarget.col);
+  clearDragVisual();
+  state.dragState = null;
+  renderBoard();
 }
 
 function clearDragVisual() {
@@ -451,6 +548,7 @@ function handleDragSwap(targetRow, targetCol) {
     statusEl.textContent = "Cards must be orthogonally adjacent.";
     return;
   }
+  state.animateMoves = true;
   clearSequenceSelection();
   if (!state.grid[targetRow][targetCol]) {
     moveCardToEmpty(startRow, startCol, targetRow, targetCol);
@@ -460,6 +558,22 @@ function handleDragSwap(targetRow, targetCol) {
   state.chainMultiplier = 1;
   dropCard();
   statusEl.textContent = "Swap complete. Card dropped.";
+}
+
+function getSwipeTarget(start, deltaX, deltaY) {
+  const absX = Math.abs(deltaX);
+  const absY = Math.abs(deltaY);
+  if (absX === 0 && absY === 0) {
+    return null;
+  }
+  const useHorizontal = absX >= absY;
+  const row = start.row + (useHorizontal ? 0 : deltaY > 0 ? 1 : -1);
+  const col = start.col + (useHorizontal ? (deltaX > 0 ? 1 : -1) : 0);
+  if (row < 0 || row >= GRID_SIZE || col < 0 || col >= GRID_SIZE) {
+    statusEl.textContent = "Swipe within the board bounds.";
+    return null;
+  }
+  return { row, col };
 }
 
 function moveCardToEmpty(startRow, startCol, targetRow, targetCol) {
@@ -574,6 +688,7 @@ function handleSwapperSwap(row, col) {
   const swapperCard = state.grid[sourceRow][sourceCol];
   const isAdjacent =
     Math.abs(sourceRow - row) + Math.abs(sourceCol - col) === 1;
+  state.animateMoves = true;
   swapCards(sourceRow, sourceCol, row, col);
   if (swapperCard && !isAdjacent) {
     swapperCard.isSwapper = false;
@@ -604,6 +719,7 @@ function handleSwapModeTap(row, col) {
     renderBoard();
     return;
   }
+  state.animateMoves = true;
   swapCards(firstRow, firstCol, row, col);
   state.pendingSwap = null;
   state.swapMode = false;
@@ -632,6 +748,51 @@ function handleCellDoubleClick(event) {
   if (state.bombMode || card.isBomb) {
     clearSingleCard(row, col, state.bombMode);
   }
+}
+
+function getSwipeThreshold(cardEl, deltaX, deltaY) {
+  const rect = cardEl.getBoundingClientRect();
+  const useHorizontal = Math.abs(deltaX) >= Math.abs(deltaY);
+  const baseLength = useHorizontal ? rect.width : rect.height;
+  return {
+    distance: useHorizontal ? deltaX : deltaY,
+    minimum: baseLength * SWIPE_THRESHOLD_RATIO,
+  };
+}
+
+function getCardRects() {
+  const rects = {};
+  const cards = boardEl.querySelectorAll(".card[data-card-id]");
+  cards.forEach((cardEl) => {
+    rects[cardEl.dataset.cardId] = cardEl.getBoundingClientRect();
+  });
+  return rects;
+}
+
+function animateCardMoves(prevRects) {
+  const cards = boardEl.querySelectorAll(".card[data-card-id]");
+  cards.forEach((cardEl) => {
+    const cardId = cardEl.dataset.cardId;
+    const prevRect = prevRects[cardId];
+    if (!prevRect) {
+      return;
+    }
+    const nextRect = cardEl.getBoundingClientRect();
+    const deltaX = prevRect.left - nextRect.left;
+    const deltaY = prevRect.top - nextRect.top;
+    if (deltaX === 0 && deltaY === 0) {
+      return;
+    }
+    cardEl.style.transform = `translate(${deltaX}px, ${deltaY}px)`;
+    requestAnimationFrame(() => {
+      cardEl.classList.add("card--animating");
+      cardEl.style.transform = "";
+      const cleanup = () => {
+        cardEl.classList.remove("card--animating");
+      };
+      cardEl.addEventListener("transitionend", cleanup, { once: true });
+    });
+  });
 }
 
 function swapCards(rowA, colA, rowB, colB) {

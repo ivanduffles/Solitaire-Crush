@@ -1,3 +1,9 @@
+:root {
+  --card-black: #010e1e;
+  --card-red: #f70909;
+  --card-gray: #808080;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -5,7 +11,7 @@
 body {
   margin: 0;
   font-family: "Inter", system-ui, sans-serif;
-  background: #0f172a;
+  background: #2c723b;
   color: #e2e8f0;
   display: flex;
   justify-content: center;
@@ -83,7 +89,7 @@ body {
   grid-template-columns: repeat(7, 1fr);
   grid-template-rows: repeat(7, 1fr);
   gap: 8px;
-  background: #111827;
+  background: transparent;
   padding: 12px;
   border-radius: 16px;
   border: 1px solid #1f2937;
@@ -99,6 +105,14 @@ body {
   background: #1f2937;
   border-radius: 12px;
   border: 1px solid #334155;
+  border: 1px solid rgba(0, 0, 0, 0.25);
+}
+
+.card {
+  aspect-ratio: 3 / 4;
+  background: #ffffff;
+  border-radius: 6px;
+  border: 1px solid #bfbfbf;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -107,7 +121,7 @@ body {
   aspect-ratio: 6 / 8;
   font-weight: 600;
   font-size: 14px;
-  color: #f8fafc;
+  color: var(--card-black);
   position: relative;
   cursor: pointer;
   user-select: none;
@@ -116,10 +130,76 @@ body {
 }
 
 .card--empty {
-  background: #0b1120;
+  background: #ffffff;
   border-style: dashed;
   color: transparent;
   cursor: default;
+  opacity: 0.25;
+}
+
+.card--black {
+  color: var(--card-black);
+}
+
+.card--red {
+  color: var(--card-red);
+}
+
+.card__content {
+  position: absolute;
+  inset: 8px;
+}
+
+.card__rank {
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.card__suit {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 34px;
+  height: 34px;
+}
+
+.card__suit svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.card--joker {
+  color: var(--card-gray);
+}
+
+.card__content--joker {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.card__joker-text {
+  writing-mode: vertical-rl;
+  text-orientation: upright;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: var(--card-gray);
+  height: 100%;
+}
+
+.card__joker-icon {
+  margin-left: auto;
+  width: 44px;
+  height: 44px;
+}
+
+.card__joker-icon svg {
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 
 .card--sprite {
@@ -150,9 +230,14 @@ body {
   pointer-events: none;
 }
 
+.card--animating {
+  transition: transform 1000ms ease;
+  will-change: transform;
+}
+
 .badge {
   position: absolute;
-  bottom: 6px;
+  top: 6px;
   right: 6px;
   font-size: 10px;
   background: rgba(15, 23, 42, 0.8);
