@@ -254,9 +254,10 @@ function handlePointerMove(event) {
     }
   }
   const hoverTarget = document.elementFromPoint(event.clientX, event.clientY);
-  if (hoverTarget && hoverTarget.classList.contains("card")) {
-    const row = Number(hoverTarget.dataset.row);
-    const col = Number(hoverTarget.dataset.col);
+  const cardTarget = hoverTarget?.closest?.(".card");
+  if (cardTarget) {
+    const row = Number(cardTarget.dataset.row);
+    const col = Number(cardTarget.dataset.col);
     if (!Number.isNaN(row) && !Number.isNaN(col)) {
       state.dragState.current = { row, col };
     }
@@ -410,9 +411,10 @@ function handlePointerUp(event) {
 
 function getDropTarget(event) {
   const hoverTarget = document.elementFromPoint(event.clientX, event.clientY);
-  if (hoverTarget && hoverTarget.classList.contains("card")) {
-    const row = Number(hoverTarget.dataset.row);
-    const col = Number(hoverTarget.dataset.col);
+  const cardTarget = hoverTarget?.closest?.(".card");
+  if (cardTarget) {
+    const row = Number(cardTarget.dataset.row);
+    const col = Number(cardTarget.dataset.col);
     if (!Number.isNaN(row) && !Number.isNaN(col)) {
       return { row, col };
     }
