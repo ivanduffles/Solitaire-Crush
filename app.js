@@ -24,6 +24,7 @@ const state = {
   gameOver: false,
   dragState: null,
   lastTap: null,
+  lastBombTap: null,
 };
 
 const boardEl = document.getElementById("board");
@@ -255,13 +256,31 @@ function handlePointerUp(event) {
       state.dragState = null;
       return;
     }
+    if (!state.bombMode && card && card.isBomb) {
+      const now = performance.now();
+      if (
+        state.lastBombTap &&
+        state.lastBombTap.row === row &&
+        state.lastBombTap.col === col &&
+        now - state.lastBombTap.time < 400
+      ) {
+        state.lastBombTap = null;
+        state.dragState = null;
+        state.activeSelection = null;
+        clearSingleCard(row, col, false);
+        return;
+      }
+      state.lastBombTap = { row, col, time: now };
+    } else {
+      state.lastBombTap = null;
+    }
     if (
       !state.activeSelection &&
       !state.swapMode &&
       !state.swapperActive &&
       !state.pendingSwap &&
       card &&
-      (state.bombMode || card.isBomb)
+      state.bombMode
     ) {
       const now = performance.now();
       if (
