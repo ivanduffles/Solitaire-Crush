@@ -80,8 +80,8 @@ body {
 
 .board {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  grid-template-rows: repeat(7, 1fr);
+  grid-template-columns: repeat(7, auto);
+  grid-template-rows: repeat(7, auto);
   gap: 8px;
   background: #111827;
   padding: 12px;
@@ -91,7 +91,7 @@ body {
   min-height: 0;
   height: 100%;
   aspect-ratio: 1 / 1;
-  width: auto;
+  width: max-content;
   max-width: 100%;
 }
 
