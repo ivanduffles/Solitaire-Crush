@@ -25,6 +25,7 @@ const state = {
   gameOver: false,
   dragState: null,
   lastTap: null,
+  animateMoves: false,
 };
 
 const boardEl = document.getElementById("board");
@@ -36,7 +37,7 @@ const chainValueEl = document.getElementById("chainValue");
 const statusEl = document.getElementById("statusMessage");
 const freeSwapButton = document.getElementById("freeSwapButton");
 const freeBombButton = document.getElementById("freeBombButton");
-const DRAG_THRESHOLD = 6;
+const DRAG_THRESHOLD = 9;
 
 function buildDeck() {
   const deck = [];
@@ -129,6 +130,7 @@ function getCardAssetKey(card) {
 }
 
 function renderBoard() {
+  const prevRects = state.animateMoves ? getCardRects() : null;
   boardEl.innerHTML = "";
   const selectedSet = new Set(
     state.sequenceSelection.map(({ row, col }) => `${row}-${col}`)
@@ -145,6 +147,7 @@ function renderBoard() {
         cell.classList.add("card--empty");
         cell.textContent = "·";
       } else {
+        cell.dataset.cardId = card.id;
         if (ASSET_MODE === "sprite") {
           const assetKey = getCardAssetKey(card);
           if (assetKey) {
@@ -190,6 +193,10 @@ function renderBoard() {
       boardEl.appendChild(cell);
     }
   }
+  if (prevRects) {
+    requestAnimationFrame(() => animateCardMoves(prevRects));
+  }
+  state.animateMoves = false;
 }
 
 function handlePointerDown(event) {
@@ -451,6 +458,7 @@ function handleDragSwap(targetRow, targetCol) {
     statusEl.textContent = "Cards must be orthogonally adjacent.";
     return;
   }
+  state.animateMoves = true;
   clearSequenceSelection();
   if (!state.grid[targetRow][targetCol]) {
     moveCardToEmpty(startRow, startCol, targetRow, targetCol);
@@ -590,6 +598,7 @@ function handleSwapperSwap(row, col) {
   const swapperCard = state.grid[sourceRow][sourceCol];
   const isAdjacent =
     Math.abs(sourceRow - row) + Math.abs(sourceCol - col) === 1;
+  state.animateMoves = true;
   swapCards(sourceRow, sourceCol, row, col);
   if (swapperCard && !isAdjacent) {
     swapperCard.isSwapper = false;
@@ -620,6 +629,7 @@ function handleSwapModeTap(row, col) {
     renderBoard();
     return;
   }
+  state.animateMoves = true;
   swapCards(firstRow, firstCol, row, col);
   state.pendingSwap = null;
   state.swapMode = false;
@@ -648,6 +658,40 @@ function handleCellDoubleClick(event) {
   if (state.bombMode || card.isBomb) {
     clearSingleCard(row, col, state.bombMode);
   }
+}
+
+function getCardRects() {
+  const rects = {};
+  const cards = boardEl.querySelectorAll(".card[data-card-id]");
+  cards.forEach((cardEl) => {
+    rects[cardEl.dataset.cardId] = cardEl.getBoundingClientRect();
+  });
+  return rects;
+}
+
+function animateCardMoves(prevRects) {
+  const cards = boardEl.querySelectorAll(".card[data-card-id]");
+  cards.forEach((cardEl) => {
+    const cardId = cardEl.dataset.cardId;
+    const prevRect = prevRects[cardId];
+    if (!prevRect) {
+      return;
+    }
+    const nextRect = cardEl.getBoundingClientRect();
+    const deltaX = prevRect.left - nextRect.left;
+    const deltaY = prevRect.top - nextRect.top;
+    if (deltaX === 0 && deltaY === 0) {
+      return;
+    }
+    cardEl.classList.add("card--animating");
+    cardEl.style.transform = `translate(${deltaX}px, ${deltaY}px)`;
+    cardEl.getBoundingClientRect();
+    cardEl.style.transform = "";
+    const cleanup = () => {
+      cardEl.classList.remove("card--animating");
+    };
+    cardEl.addEventListener("transitionend", cleanup, { once: true });
+  });
 }
 
 function swapCards(rowA, colA, rowB, colB) {
