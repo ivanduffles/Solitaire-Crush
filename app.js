@@ -197,6 +197,10 @@ function handlePointerDown(event) {
   if (state.gameOver) {
     return;
   }
+  // Drag swaps only apply in normal mode with a real card.
+  if (state.bombMode || state.swapMode || state.swapperActive || state.pendingSwap) {
+    return;
+  }
   const row = Number(event.currentTarget.dataset.row);
   const col = Number(event.currentTarget.dataset.col);
   const card = state.grid[row][col];
@@ -258,14 +262,15 @@ function handlePointerMove(event) {
     }
   }
   const hoverTarget = document.elementFromPoint(event.clientX, event.clientY);
-  if (hoverTarget && hoverTarget.classList.contains("card")) {
-    const row = Number(hoverTarget.dataset.row);
-    const col = Number(hoverTarget.dataset.col);
+  const cardTarget = hoverTarget?.closest?.(".card");
+  if (cardTarget) {
+    const row = Number(cardTarget.dataset.row);
+    const col = Number(cardTarget.dataset.col);
     if (!Number.isNaN(row) && !Number.isNaN(col)) {
       state.dragState.current = { row, col };
     }
   }
-  cardEl.style.transform = `translate(${deltaX}px, ${deltaY}px)`;
+  cardEl.style.transform = `translate(${deltaX}px, ${deltaY}px) scale(1.03)`;
 }
 
 function clearDragVisual() {
@@ -414,9 +419,10 @@ function handlePointerUp(event) {
 
 function getDropTarget(event) {
   const hoverTarget = document.elementFromPoint(event.clientX, event.clientY);
-  if (hoverTarget && hoverTarget.classList.contains("card")) {
-    const row = Number(hoverTarget.dataset.row);
-    const col = Number(hoverTarget.dataset.col);
+  const cardTarget = hoverTarget?.closest?.(".card");
+  if (cardTarget) {
+    const row = Number(cardTarget.dataset.row);
+    const col = Number(cardTarget.dataset.col);
     if (!Number.isNaN(row) && !Number.isNaN(col)) {
       return { row, col };
     }
