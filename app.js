@@ -37,7 +37,7 @@ const chainValueEl = document.getElementById("chainValue");
 const statusEl = document.getElementById("statusMessage");
 const freeSwapButton = document.getElementById("freeSwapButton");
 const freeBombButton = document.getElementById("freeBombButton");
-const SWIPE_THRESHOLD_RATIO = 1;
+const DRAG_THRESHOLD = 9;
 
 function buildDeck() {
   const deck = [];
@@ -264,16 +264,13 @@ function handlePointerMove(event) {
     return;
   }
   const distance = Math.hypot(deltaX, deltaY);
-  const threshold = getSwipeThreshold(cardEl);
-  if (distance < threshold) {
+  if (distance < DRAG_THRESHOLD) {
     return;
   }
   state.dragState.moved = true;
   state.dragState.swiped = true;
   const swipeTarget = getSwipeTarget(state.dragState.start, deltaX, deltaY);
   if (!swipeTarget) {
-    clearDragVisual();
-    state.dragState = null;
     return;
   }
   handleDragSwap(swipeTarget.row, swipeTarget.col);
@@ -661,12 +658,6 @@ function handleCellDoubleClick(event) {
   if (state.bombMode || card.isBomb) {
     clearSingleCard(row, col, state.bombMode);
   }
-}
-
-function getSwipeThreshold(cardEl) {
-  const rect = cardEl.getBoundingClientRect();
-  const baseLength = Math.max(rect.width, rect.height);
-  return baseLength * SWIPE_THRESHOLD_RATIO;
 }
 
 function getCardRects() {
