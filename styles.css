@@ -144,8 +144,8 @@ body {
   position: absolute;
   right: 0;
   bottom: 0;
-  width: 34px;
-  height: 34px;
+  width: 80%;
+  height: 80%;
 }
 
 .card__suit svg {
@@ -167,9 +167,9 @@ body {
 .card__joker-text {
   writing-mode: vertical-rl;
   text-orientation: upright;
-  font-size: clamp(8px, 2.4vh, 14px);
+  font-size: clamp(7px, 1.8vmin, 12px);
   font-weight: 700;
-  letter-spacing: 1.5px;
+  letter-spacing: 1px;
   color: var(--card-gray);
   height: 100%;
   line-height: 1;
