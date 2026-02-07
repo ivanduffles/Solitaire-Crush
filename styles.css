@@ -135,7 +135,7 @@ body {
 }
 
 .card--animating {
-  transition: transform 250ms ease;
+  transition: transform 1000ms ease;
   will-change: transform;
 }
 

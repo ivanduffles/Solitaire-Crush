@@ -37,7 +37,7 @@ const chainValueEl = document.getElementById("chainValue");
 const statusEl = document.getElementById("statusMessage");
 const freeSwapButton = document.getElementById("freeSwapButton");
 const freeBombButton = document.getElementById("freeBombButton");
-const DRAG_THRESHOLD = 9;
+const SWIPE_THRESHOLD_RATIO = 1;
 
 function buildDeck() {
   const deck = [];
@@ -263,14 +263,16 @@ function handlePointerMove(event) {
   if (state.dragState.swiped) {
     return;
   }
-  const distance = Math.hypot(deltaX, deltaY);
-  if (distance < DRAG_THRESHOLD) {
+  const threshold = getSwipeThreshold(cardEl, deltaX, deltaY);
+  if (Math.abs(threshold.distance) < threshold.minimum) {
     return;
   }
   state.dragState.moved = true;
   state.dragState.swiped = true;
   const swipeTarget = getSwipeTarget(state.dragState.start, deltaX, deltaY);
   if (!swipeTarget) {
+    clearDragVisual();
+    state.dragState = null;
     return;
   }
   handleDragSwap(swipeTarget.row, swipeTarget.col);
@@ -660,6 +662,16 @@ function handleCellDoubleClick(event) {
   }
 }
 
+function getSwipeThreshold(cardEl, deltaX, deltaY) {
+  const rect = cardEl.getBoundingClientRect();
+  const useHorizontal = Math.abs(deltaX) >= Math.abs(deltaY);
+  const baseLength = useHorizontal ? rect.width : rect.height;
+  return {
+    distance: useHorizontal ? deltaX : deltaY,
+    minimum: baseLength * SWIPE_THRESHOLD_RATIO,
+  };
+}
+
 function getCardRects() {
   const rects = {};
   const cards = boardEl.querySelectorAll(".card[data-card-id]");
@@ -683,14 +695,15 @@ function animateCardMoves(prevRects) {
     if (deltaX === 0 && deltaY === 0) {
       return;
     }
-    cardEl.classList.add("card--animating");
     cardEl.style.transform = `translate(${deltaX}px, ${deltaY}px)`;
-    cardEl.getBoundingClientRect();
-    cardEl.style.transform = "";
-    const cleanup = () => {
-      cardEl.classList.remove("card--animating");
-    };
-    cardEl.addEventListener("transitionend", cleanup, { once: true });
+    requestAnimationFrame(() => {
+      cardEl.classList.add("card--animating");
+      cardEl.style.transform = "";
+      const cleanup = () => {
+        cardEl.classList.remove("card--animating");
+      };
+      cardEl.addEventListener("transitionend", cleanup, { once: true });
+    });
   });
 }
 
