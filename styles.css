@@ -134,6 +134,11 @@ body {
   pointer-events: none;
 }
 
+.card--animating {
+  transition: transform 250ms ease;
+  will-change: transform;
+}
+
 .badge {
   position: absolute;
   bottom: 6px;
