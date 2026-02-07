@@ -216,6 +216,7 @@ function handlePointerDown(event) {
     pointerId: event.pointerId,
     cardEl: dragDisabled ? null : event.currentTarget,
     moved: false,
+    swiped: false,
   };
   event.currentTarget.setPointerCapture(event.pointerId);
   if (!dragDisabled) {
@@ -252,24 +253,23 @@ function handlePointerMove(event) {
   }
   const deltaX = event.clientX - startX;
   const deltaY = event.clientY - startY;
-  if (!state.dragState.moved) {
-    const distance = Math.hypot(deltaX, deltaY);
-    if (distance >= DRAG_THRESHOLD) {
-      state.dragState.moved = true;
-    } else {
-      return;
-    }
+  if (state.dragState.swiped) {
+    return;
   }
-  const hoverTarget = document.elementFromPoint(event.clientX, event.clientY);
-  const cardTarget = hoverTarget?.closest?.(".card");
-  if (cardTarget) {
-    const row = Number(cardTarget.dataset.row);
-    const col = Number(cardTarget.dataset.col);
-    if (!Number.isNaN(row) && !Number.isNaN(col)) {
-      state.dragState.current = { row, col };
-    }
+  const distance = Math.hypot(deltaX, deltaY);
+  if (distance < DRAG_THRESHOLD) {
+    return;
   }
-  cardEl.style.transform = `translate(${deltaX}px, ${deltaY}px) scale(1.03)`;
+  state.dragState.moved = true;
+  state.dragState.swiped = true;
+  const swipeTarget = getSwipeTarget(state.dragState.start, deltaX, deltaY);
+  if (!swipeTarget) {
+    return;
+  }
+  handleDragSwap(swipeTarget.row, swipeTarget.col);
+  clearDragVisual();
+  state.dragState = null;
+  renderBoard();
 }
 
 function clearDragVisual() {
@@ -460,6 +460,22 @@ function handleDragSwap(targetRow, targetCol) {
   state.chainMultiplier = 1;
   dropCard();
   statusEl.textContent = "Swap complete. Card dropped.";
+}
+
+function getSwipeTarget(start, deltaX, deltaY) {
+  const absX = Math.abs(deltaX);
+  const absY = Math.abs(deltaY);
+  if (absX === 0 && absY === 0) {
+    return null;
+  }
+  const useHorizontal = absX >= absY;
+  const row = start.row + (useHorizontal ? 0 : deltaY > 0 ? 1 : -1);
+  const col = start.col + (useHorizontal ? (deltaX > 0 ? 1 : -1) : 0);
+  if (row < 0 || row >= GRID_SIZE || col < 0 || col >= GRID_SIZE) {
+    statusEl.textContent = "Swipe within the board bounds.";
+    return null;
+  }
+  return { row, col };
 }
 
 function moveCardToEmpty(startRow, startCol, targetRow, targetCol) {
