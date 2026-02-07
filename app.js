@@ -197,6 +197,7 @@ function handlePointerDown(event) {
   if (state.gameOver) {
     return;
   }
+  // Drag swaps only apply in normal mode with a real card.
   if (state.bombMode || state.swapMode || state.swapperActive || state.pendingSwap) {
     return;
   }
@@ -260,7 +261,7 @@ function handlePointerMove(event) {
       state.dragState.current = { row, col };
     }
   }
-  cardEl.style.transform = `translate(${deltaX}px, ${deltaY}px)`;
+  cardEl.style.transform = `translate(${deltaX}px, ${deltaY}px) scale(1.03)`;
 }
 
 function clearDragVisual() {
