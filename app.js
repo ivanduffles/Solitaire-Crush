@@ -197,12 +197,12 @@ function handlePointerDown(event) {
   if (state.gameOver) {
     return;
   }
-  if (state.bombMode || state.swapMode || state.swapperActive || state.pendingSwap) {
-    return;
-  }
   const row = Number(event.currentTarget.dataset.row);
   const col = Number(event.currentTarget.dataset.col);
-  if (!state.grid[row][col]) {
+  const card = state.grid[row][col];
+  const dragDisabled =
+    state.bombMode || state.swapMode || state.swapperActive || state.pendingSwap;
+  if (!card && !dragDisabled) {
     return;
   }
   state.dragState = {
@@ -211,11 +211,13 @@ function handlePointerDown(event) {
     startX: event.clientX,
     startY: event.clientY,
     pointerId: event.pointerId,
-    cardEl: event.currentTarget,
+    cardEl: dragDisabled ? null : event.currentTarget,
     moved: false,
   };
   event.currentTarget.setPointerCapture(event.pointerId);
-  event.currentTarget.classList.add("card--dragging");
+  if (!dragDisabled) {
+    event.currentTarget.classList.add("card--dragging");
+  }
 }
 
 function handlePointerEnter(event) {
@@ -236,6 +238,9 @@ function handlePointerEnter(event) {
 
 function handlePointerMove(event) {
   if (!state.dragState || state.gameOver) {
+    return;
+  }
+  if (state.swapMode || state.bombMode || state.swapperActive || state.pendingSwap) {
     return;
   }
   const { startX, startY, cardEl } = state.dragState;
