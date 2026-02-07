@@ -5,6 +5,42 @@ const RANKS = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"]
 
 const ASSET_MODE = "text";
 
+const SUIT_SVGS = {
+  "♠": (color) => `
+    <svg viewBox="0 0 64 64" aria-hidden="true">
+      <path fill="${color}" d="M32 4C21 18 8 26 8 40c0 10 8 18 18 18 5 0 9-2 12-6 3 4 7 6 12 6 10 0 18-8 18-18C68 26 43 18 32 4z"/>
+      <path fill="${color}" d="M36 50c0 6 3 9 6 10v4H22v-4c3-1 6-4 6-10h8z"/>
+    </svg>
+  `,
+  "♥": (color) => `
+    <svg viewBox="0 0 64 64" aria-hidden="true">
+      <path fill="${color}" d="M32 58C16 44 6 34 6 22 6 14 12 8 20 8c6 0 10 3 12 7 2-4 6-7 12-7 8 0 14 6 14 14 0 12-10 22-26 36z"/>
+    </svg>
+  `,
+  "♦": (color) => `
+    <svg viewBox="0 0 64 64" aria-hidden="true">
+      <path fill="${color}" d="M32 4l20 28-20 28L12 32 32 4z"/>
+    </svg>
+  `,
+  "♣": (color) => `
+    <svg viewBox="0 0 64 64" aria-hidden="true">
+      <circle cx="22" cy="24" r="12" fill="${color}" />
+      <circle cx="42" cy="24" r="12" fill="${color}" />
+      <circle cx="32" cy="40" r="12" fill="${color}" />
+      <path fill="${color}" d="M36 44c0 6 3 9 6 10v4H22v-4c3-1 6-4 6-10h8z"/>
+    </svg>
+  `,
+};
+
+const JOKER_HAT_SVG = `
+  <svg viewBox="0 0 64 64" aria-hidden="true">
+    <path fill="#808080" d="M10 40c10-12 18-18 26-18 8 0 16 6 18 12l-6 4c-2-4-6-6-10-6-6 0-12 6-18 16L10 40z"/>
+    <path fill="#b0b0b0" d="M16 44c6-8 12-12 18-12 6 0 12 4 14 8l-4 3c-2-3-6-5-10-5-4 0-9 4-14 10l-4-4z"/>
+    <circle cx="52" cy="28" r="4" fill="#808080"/>
+    <circle cx="18" cy="52" r="4" fill="#808080"/>
+  </svg>
+`;
+
 const state = {
   grid: [],
   deck: [],
@@ -129,6 +165,51 @@ function getCardAssetKey(card) {
   return `${card.rank.toLowerCase()}_of_${suitName}`;
 }
 
+function getSuitColor(suit) {
+  if (suit === "♥" || suit === "♦") {
+    return { className: "card--red", color: "#f70909" };
+  }
+  return { className: "card--black", color: "#010e1e" };
+}
+
+function buildStandardCardContent(card) {
+  const wrapper = document.createElement("div");
+  wrapper.className = "card__content";
+
+  const rankEl = document.createElement("div");
+  rankEl.className = "card__rank";
+  rankEl.textContent = card.rank;
+
+  const suitEl = document.createElement("div");
+  suitEl.className = "card__suit";
+  const suitSvg = SUIT_SVGS[card.suit];
+  const { color } = getSuitColor(card.suit);
+  if (suitSvg) {
+    suitEl.innerHTML = suitSvg(color);
+  } else {
+    suitEl.textContent = card.suit;
+  }
+
+  wrapper.append(rankEl, suitEl);
+  return wrapper;
+}
+
+function buildJokerCardContent() {
+  const wrapper = document.createElement("div");
+  wrapper.className = "card__content card__content--joker";
+
+  const jokerText = document.createElement("div");
+  jokerText.className = "card__joker-text";
+  jokerText.textContent = "JOKER";
+
+  const jokerIcon = document.createElement("div");
+  jokerIcon.className = "card__joker-icon";
+  jokerIcon.innerHTML = JOKER_HAT_SVG;
+
+  wrapper.append(jokerText, jokerIcon);
+  return wrapper;
+}
+
 function renderBoard() {
   const prevRects = state.animateMoves ? getCardRects() : null;
   boardEl.innerHTML = "";
@@ -155,7 +236,14 @@ function renderBoard() {
             cell.style.backgroundImage = `url(assets/cards/${assetKey}.png)`;
           }
         }
-        cell.textContent = `${card.rank}${card.suit}`;
+        if (card.rank === "Joker") {
+          cell.classList.add("card--joker");
+          cell.appendChild(buildJokerCardContent());
+        } else {
+          const { className } = getSuitColor(card.suit);
+          cell.classList.add(className);
+          cell.appendChild(buildStandardCardContent(card));
+        }
         if (card.isBomb) {
           cell.insertAdjacentHTML("beforeend", `<span class="badge">B</span>`);
         }
