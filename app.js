@@ -16,6 +16,7 @@ const state = {
   activeSelection: null,
   sequenceSelection: [],
   sequenceValid: false,
+  sequenceDirection: null,
   swapMode: false,
   bombMode: false,
   pendingSwap: null,
@@ -24,6 +25,7 @@ const state = {
   gameOver: false,
   dragState: null,
   lastTap: null,
+  lastBombTap: null,
 };
 
 const boardEl = document.getElementById("board");
@@ -35,6 +37,7 @@ const chainValueEl = document.getElementById("chainValue");
 const statusEl = document.getElementById("statusMessage");
 const freeSwapButton = document.getElementById("freeSwapButton");
 const freeBombButton = document.getElementById("freeBombButton");
+const DRAG_THRESHOLD = 6;
 
 function buildDeck() {
   const deck = [];
@@ -194,23 +197,32 @@ function handlePointerDown(event) {
   if (state.gameOver) {
     return;
   }
-  if (state.bombMode) {
+  if (state.bombMode || state.swapMode || state.swapperActive || state.pendingSwap) {
     return;
   }
   const row = Number(event.currentTarget.dataset.row);
   const col = Number(event.currentTarget.dataset.col);
+  if (!state.grid[row][col]) {
+    return;
+  }
   state.dragState = {
     start: { row, col },
     current: { row, col },
+    startX: event.clientX,
+    startY: event.clientY,
+    pointerId: event.pointerId,
+    cardEl: event.currentTarget,
     moved: false,
   };
+  event.currentTarget.setPointerCapture(event.pointerId);
+  event.currentTarget.classList.add("card--dragging");
 }
 
 function handlePointerEnter(event) {
   if (!state.dragState || state.gameOver) {
     return;
   }
-  if (state.swapMode || state.bombMode) {
+  if (state.swapMode || state.bombMode || state.swapperActive || state.pendingSwap) {
     return;
   }
   const row = Number(event.currentTarget.dataset.row);
@@ -220,7 +232,44 @@ function handlePointerEnter(event) {
   }
   state.dragState.current = { row, col };
   state.dragState.moved = true;
-  updateSequenceSelection();
+}
+
+function handlePointerMove(event) {
+  if (!state.dragState || state.gameOver) {
+    return;
+  }
+  const { startX, startY, cardEl } = state.dragState;
+  if (!cardEl) {
+    return;
+  }
+  const deltaX = event.clientX - startX;
+  const deltaY = event.clientY - startY;
+  if (!state.dragState.moved) {
+    const distance = Math.hypot(deltaX, deltaY);
+    if (distance >= DRAG_THRESHOLD) {
+      state.dragState.moved = true;
+    } else {
+      return;
+    }
+  }
+  cardEl.style.transform = `translate(${deltaX}px, ${deltaY}px)`;
+}
+
+function clearDragVisual() {
+  if (!state.dragState || !state.dragState.cardEl) {
+    return;
+  }
+  const { cardEl } = state.dragState;
+  cardEl.style.transform = "";
+  cardEl.classList.remove("card--dragging");
+}
+
+function handlePointerCancel() {
+  if (!state.dragState) {
+    return;
+  }
+  clearDragVisual();
+  state.dragState = null;
 }
 
 function handlePointerUp(event) {
@@ -232,155 +281,224 @@ function handlePointerUp(event) {
   const col = Number(event.currentTarget.dataset.col);
   const card = state.grid[row][col];
 
-  if (!moved) {
-    const isInSequence = state.sequenceSelection.some(
-      (cell) => cell.row === row && cell.col === col
-    );
-    if (state.sequenceValid && state.sequenceSelection.length >= 3 && isInSequence) {
-      const now = performance.now();
-      if (
-        state.lastTap &&
-        state.lastTap.row === row &&
-        state.lastTap.col === col &&
-        now - state.lastTap.time < 400
-      ) {
-        state.lastTap = null;
-        state.dragState = null;
-        clearSelectedSequence();
-        return;
-      }
-      state.lastTap = { row, col, time: now };
-      statusEl.textContent = "Sequence selected. Double tap to clear.";
-      renderBoard();
-      state.dragState = null;
-      return;
-    }
-    if (
-      !state.activeSelection &&
-      !state.swapMode &&
-      !state.swapperActive &&
-      !state.pendingSwap &&
-      card &&
-      (state.bombMode || card.isBomb)
-    ) {
-      const now = performance.now();
-      if (
-        state.lastTap &&
-        state.lastTap.row === row &&
-        state.lastTap.col === col &&
-        now - state.lastTap.time < 400
-      ) {
-        state.lastTap = null;
-        state.dragState = null;
-        clearSingleCard(row, col, state.bombMode);
-        return;
-      }
-      state.lastTap = { row, col, time: now };
-      statusEl.textContent = "Bomb ready: double tap to clear.";
-      renderBoard();
-      state.dragState = null;
-      return;
-    }
-    state.lastTap = null;
-    handleTapSwap(row, col);
-  } else {
-    if (state.sequenceValid && state.sequenceSelection.length >= 3) {
-      statusEl.textContent = "Sequence selected. Double tap to clear.";
-    } else {
-      clearSequenceSelection();
-      statusEl.textContent = "Invalid sequence selection.";
-    }
-  }
-  state.dragState = null;
-  renderBoard();
-}
-
-function handleTapSwap(row, col) {
-  if (!state.grid[row][col]) {
-    if (state.activeSelection) {
-      attemptMoveToEmpty(row, col);
-    } else {
-      statusEl.textContent = "Select a card to swap.";
-    }
-    return;
-  }
-
-  if (state.swapperActive) {
-    handleSwapperSwap(row, col);
+  if (moved) {
+    handleDragSwap(row, col);
+    clearDragVisual();
+    state.dragState = null;
+    renderBoard();
     return;
   }
 
   if (state.swapMode) {
     handleSwapModeTap(row, col);
+    clearDragVisual();
+    state.dragState = null;
     return;
   }
 
-  if (!state.activeSelection && state.grid[row][col].isSwapper) {
+  if (state.swapperActive) {
+    handleSwapperSwap(row, col);
+    clearDragVisual();
+    state.dragState = null;
+    return;
+  }
+
+  if (state.bombMode) {
+    if (!card) {
+      state.lastTap = null;
+      state.dragState = null;
+      return;
+    }
+    const now = performance.now();
+    if (
+      state.lastTap &&
+      state.lastTap.row === row &&
+      state.lastTap.col === col &&
+      now - state.lastTap.time < 400
+    ) {
+      state.lastTap = null;
+      clearDragVisual();
+      state.dragState = null;
+      clearSingleCard(row, col, true);
+      return;
+    }
+    state.lastTap = { row, col, time: now };
+    statusEl.textContent = "Bomb ready: double tap to clear.";
+    renderBoard();
+    clearDragVisual();
+    state.dragState = null;
+    return;
+  }
+
+  const isInSequence = state.sequenceSelection.some(
+    (cell) => cell.row === row && cell.col === col
+  );
+  if (state.sequenceValid && state.sequenceSelection.length >= 3 && isInSequence) {
+    const now = performance.now();
+    if (
+      state.lastTap &&
+      state.lastTap.row === row &&
+      state.lastTap.col === col &&
+      now - state.lastTap.time < 400
+    ) {
+      state.lastTap = null;
+      clearDragVisual();
+      state.dragState = null;
+      clearSelectedSequence();
+      return;
+    }
+    state.lastTap = { row, col, time: now };
+    statusEl.textContent = "Sequence selected. Double tap to clear.";
+    renderBoard();
+    clearDragVisual();
+    state.dragState = null;
+    return;
+  }
+
+  if (card && card.isBomb) {
+    const now = performance.now();
+    if (
+      state.lastBombTap &&
+      state.lastBombTap.row === row &&
+      state.lastBombTap.col === col &&
+      now - state.lastBombTap.time < 400
+    ) {
+      state.lastBombTap = null;
+      clearDragVisual();
+      state.dragState = null;
+      clearSequenceSelection();
+      clearSingleCard(row, col, false);
+      return;
+    }
+    state.lastBombTap = { row, col, time: now };
+  } else {
+    state.lastBombTap = null;
+  }
+
+  if (!state.sequenceSelection.length && card && card.isSwapper) {
     state.swapperActive = true;
     state.swapperSource = { row, col };
     statusEl.textContent = "Swapper active: select any card to swap.";
     renderBoard();
+    clearDragVisual();
+    state.dragState = null;
     return;
   }
 
-  if (!state.activeSelection) {
-    state.activeSelection = { row, col };
-    statusEl.textContent = "Tap an adjacent card to swap.";
-    renderBoard();
+  if (!card) {
+    statusEl.textContent = "Tap a card to start a sequence.";
+    clearDragVisual();
+    state.dragState = null;
     return;
   }
 
-  const { row: activeRow, col: activeCol } = state.activeSelection;
-  if (activeRow === row && activeCol === col) {
-    state.activeSelection = null;
-    statusEl.textContent = "Selection cleared.";
-    renderBoard();
-    return;
-  }
-
-  const isAdjacent =
-    Math.abs(activeRow - row) + Math.abs(activeCol - col) === 1;
-  if (!isAdjacent) {
-    statusEl.textContent = "Cards must be orthogonally adjacent.";
-    state.activeSelection = null;
-    renderBoard();
-    return;
-  }
-
-  swapCards(activeRow, activeCol, row, col);
-  state.activeSelection = null;
-  state.chainMultiplier = 1;
-  dropCard();
-  statusEl.textContent = "Swap complete. Card dropped.";
+  handleSequenceTap(row, col);
+  clearDragVisual();
+  state.dragState = null;
   renderBoard();
 }
 
-function attemptMoveToEmpty(row, col) {
-  if (!state.activeSelection) {
+function handleDragSwap(targetRow, targetCol) {
+  if (!state.dragState) {
     return;
   }
-  const { row: activeRow, col: activeCol } = state.activeSelection;
+  const { row: startRow, col: startCol } = state.dragState.start;
+  if (startRow === targetRow && startCol === targetCol) {
+    return;
+  }
+  const movingCard = state.grid[startRow][startCol];
+  if (!movingCard) {
+    return;
+  }
   const isAdjacent =
-    Math.abs(activeRow - row) + Math.abs(activeCol - col) === 1;
+    Math.abs(startRow - targetRow) + Math.abs(startCol - targetCol) === 1;
   if (!isAdjacent) {
     statusEl.textContent = "Cards must be orthogonally adjacent.";
-    state.activeSelection = null;
-    renderBoard();
     return;
   }
-  const movingCard = state.grid[activeRow][activeCol];
+  clearSequenceSelection();
+  if (!state.grid[targetRow][targetCol]) {
+    moveCardToEmpty(startRow, startCol, targetRow, targetCol);
+    return;
+  }
+  swapCards(startRow, startCol, targetRow, targetCol);
+  state.chainMultiplier = 1;
+  dropCard();
+  statusEl.textContent = "Swap complete. Card dropped.";
+}
+
+function moveCardToEmpty(startRow, startCol, targetRow, targetCol) {
+  const movingCard = state.grid[startRow][startCol];
   if (!movingCard) {
-    state.activeSelection = null;
     return;
   }
-  state.grid[row][col] = movingCard;
-  state.grid[activeRow][activeCol] = null;
-  shiftColumnDown(activeCol, activeRow);
-  state.activeSelection = null;
+  state.grid[targetRow][targetCol] = movingCard;
+  state.grid[startRow][startCol] = null;
+  shiftColumnDown(startCol, startRow);
   state.chainMultiplier = 1;
   dropCard();
   statusEl.textContent = "Move complete. Card dropped.";
-  renderBoard();
+}
+
+function handleSequenceTap(row, col) {
+  state.lastTap = null;
+  const selection = state.sequenceSelection;
+  if (selection.some((cell) => cell.row === row && cell.col === col)) {
+    statusEl.textContent = "Card already selected.";
+    return;
+  }
+  if (selection.length === 0) {
+    resetSequenceToStart(row, col, "Sequence started. Tap adjacent cards.");
+    return;
+  }
+  const lastCell = selection[selection.length - 1];
+  const isAdjacent =
+    Math.abs(lastCell.row - row) + Math.abs(lastCell.col - col) === 1;
+  if (!isAdjacent) {
+    clearSequenceSelection();
+    statusEl.textContent = "Illegal sequence. Selection cleared.";
+    return;
+  }
+  if (!state.sequenceDirection) {
+    if (row === lastCell.row) {
+      state.sequenceDirection = "row";
+    } else if (col === lastCell.col) {
+      state.sequenceDirection = "col";
+    } else {
+      clearSequenceSelection();
+      statusEl.textContent = "Illegal sequence. Selection cleared.";
+      return;
+    }
+  } else if (
+    (state.sequenceDirection === "row" && row !== lastCell.row) ||
+    (state.sequenceDirection === "col" && col !== lastCell.col)
+  ) {
+    clearSequenceSelection();
+    statusEl.textContent = "Illegal sequence. Selection cleared.";
+    return;
+  }
+
+  selection.push({ row, col });
+  if (selection.length >= 3) {
+    const validation = validateSequence(selection);
+    state.sequenceValid = validation.valid;
+    if (validation.valid) {
+      statusEl.textContent = "Sequence selected. Double tap to clear.";
+    } else {
+      clearSequenceSelection();
+      statusEl.textContent = "Illegal sequence. Selection cleared.";
+    }
+    return;
+  }
+  state.sequenceValid = false;
+  statusEl.textContent = "Sequence in progress.";
+}
+
+function resetSequenceToStart(row, col, message) {
+  state.sequenceSelection = [{ row, col }];
+  state.sequenceValid = false;
+  state.sequenceDirection = null;
+  statusEl.textContent = message;
 }
 
 function shiftColumnDown(col, startRow) {
@@ -473,49 +591,10 @@ function handleCellDoubleClick(event) {
   }
 }
 
-function updateSequenceSelection() {
-  if (!state.dragState) {
-    return;
-  }
-  if (state.swapMode || state.bombMode) {
-    return;
-  }
-  const { start, current } = state.dragState;
-  if (start.row !== current.row && start.col !== current.col) {
-    state.sequenceSelection = [];
-    state.sequenceValid = false;
-    renderBoard();
-    return;
-  }
-  const selection = buildLineSelection(start, current);
-  const validation = validateSequence(selection);
-  state.sequenceSelection = selection;
-  state.sequenceValid = validation.valid;
-  renderBoard();
-}
-
 function swapCards(rowA, colA, rowB, colB) {
   const temp = state.grid[rowA][colA];
   state.grid[rowA][colA] = state.grid[rowB][colB];
   state.grid[rowB][colB] = temp;
-}
-
-function buildLineSelection(start, current) {
-  const cells = [];
-  if (start.row === current.row) {
-    const row = start.row;
-    const [minCol, maxCol] = [start.col, current.col].sort((a, b) => a - b);
-    for (let col = minCol; col <= maxCol; col += 1) {
-      cells.push({ row, col });
-    }
-  } else if (start.col === current.col) {
-    const col = start.col;
-    const [minRow, maxRow] = [start.row, current.row].sort((a, b) => a - b);
-    for (let row = minRow; row <= maxRow; row += 1) {
-      cells.push({ row, col });
-    }
-  }
-  return cells;
 }
 
 function validateSequence(selection) {
@@ -631,6 +710,7 @@ function clearSequenceSelection() {
   state.sequenceSelection = [];
   state.sequenceValid = false;
   state.lastTap = null;
+  state.sequenceDirection = null;
 }
 
 function clearSingleCard(row, col, consumesFreeBomb) {
@@ -747,5 +827,9 @@ freeBombButton.addEventListener("click", () => {
   updateHud();
   renderBoard();
 });
+
+boardEl.addEventListener("pointermove", handlePointerMove);
+boardEl.addEventListener("pointercancel", handlePointerCancel);
+boardEl.addEventListener("pointerleave", handlePointerCancel);
 
 init();
