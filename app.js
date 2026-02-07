@@ -74,7 +74,7 @@ const chainValueEl = document.getElementById("chainValue");
 const statusEl = document.getElementById("statusMessage");
 const freeSwapButton = document.getElementById("freeSwapButton");
 const freeBombButton = document.getElementById("freeBombButton");
-const SWIPE_THRESHOLD_RATIO = 1;
+const SWIPE_THRESHOLD_RATIO = 0.35;
 
 function buildDeck() {
   const deck = [];
@@ -292,6 +292,7 @@ function handlePointerDown(event) {
   if (state.gameOver) {
     return;
   }
+  event.preventDefault();
   // Drag swaps only apply in normal mode with a real card.
   if (state.bombMode || state.swapMode || state.swapperActive || state.pendingSwap) {
     return;
