@@ -39,6 +39,45 @@ const freeSwapButton = document.getElementById("freeSwapButton");
 const freeBombButton = document.getElementById("freeBombButton");
 const DRAG_THRESHOLD = 6;
 
+const FACE_LABELS = {
+  J: "Jester",
+  Q: "Queen",
+  K: "King",
+};
+
+function getSuitColorClass(card) {
+  if (card.rank === "Joker") {
+    return "card__mark--joker";
+  }
+  return card.suit === "♥" || card.suit === "♦"
+    ? "card__mark--red"
+    : "card__mark--black";
+}
+
+function createSuitSpan(symbol, className, colorClass) {
+  const span = document.createElement("span");
+  span.className = `${className} ${colorClass}`.trim();
+  span.textContent = symbol;
+  return span;
+}
+
+function createFaceElement(label, isJoker) {
+  const face = document.createElement("div");
+  face.className = `card__face${isJoker ? " card__face--joker" : ""}`;
+  face.textContent = label;
+  return face;
+}
+
+function createPowerBadge(type) {
+  const badge = document.createElement("span");
+  badge.className = "badge";
+  const icon = document.createElement("img");
+  icon.src = type === "bomb" ? "assets/icons/bomb.svg" : "assets/icons/swap.svg";
+  icon.alt = type === "bomb" ? "Bomb" : "Swap";
+  badge.appendChild(icon);
+  return badge;
+}
+
 function buildDeck() {
   const deck = [];
   for (let d = 0; d < 2; d += 1) {
@@ -144,21 +183,40 @@ function renderBoard() {
 
       if (!card) {
         cell.classList.add("card--empty");
-        cell.textContent = "·";
       } else {
-        if (ASSET_MODE === "sprite") {
-          const assetKey = getCardAssetKey(card);
-          if (assetKey) {
-            cell.classList.add("card--sprite");
-            cell.style.backgroundImage = `url(assets/cards/${assetKey}.png)`;
-          }
+        const colorClass = getSuitColorClass(card);
+        const corner = document.createElement("div");
+        corner.className = "card__corner";
+        const rankLabel = document.createElement("span");
+        rankLabel.className = `card__rank ${colorClass}`.trim();
+        rankLabel.textContent = card.rank === "Joker" ? "J" : card.rank;
+        corner.appendChild(rankLabel);
+        cell.appendChild(corner);
+
+        const isFaceCard = ["J", "Q", "K"].includes(card.rank);
+        if (card.rank === "Joker") {
+          cell.classList.add("card--joker");
+          cell.appendChild(createFaceElement("Joker", true));
+          const jokerText = document.createElement("div");
+          jokerText.className = "card__joker-text";
+          jokerText.textContent = "JOKER";
+          cell.appendChild(jokerText);
+        } else if (isFaceCard) {
+          cell.appendChild(createFaceElement(FACE_LABELS[card.rank], false));
         }
-        cell.textContent = `${card.rank}${card.suit}`;
+
+        const largeSuit = createSuitSpan(
+          card.rank === "Joker" ? "🃏" : card.suit,
+          "card__suit card__suit--large",
+          colorClass
+        );
+        cell.appendChild(largeSuit);
+
         if (card.isBomb) {
-          cell.insertAdjacentHTML("beforeend", `<span class="badge">B</span>`);
+          cell.appendChild(createPowerBadge("bomb"));
         }
         if (card.isSwapper) {
-          cell.insertAdjacentHTML("beforeend", `<span class="badge">S</span>`);
+          cell.appendChild(createPowerBadge("swap"));
         }
       }
 
@@ -328,12 +386,31 @@ function handlePointerUp(event) {
       state.dragState = null;
       return;
     }
-    const now = performance.now();
+    if (!state.bombMode && card && card.isBomb) {
+      const now = performance.now();
+      if (
+        state.lastBombTap &&
+        state.lastBombTap.row === row &&
+        state.lastBombTap.col === col &&
+        now - state.lastBombTap.time < 400
+      ) {
+        state.lastBombTap = null;
+        state.dragState = null;
+        state.activeSelection = null;
+        clearSingleCard(row, col, false);
+        return;
+      }
+      state.lastBombTap = { row, col, time: now };
+    } else {
+      state.lastBombTap = null;
+    }
     if (
-      state.lastTap &&
-      state.lastTap.row === row &&
-      state.lastTap.col === col &&
-      now - state.lastTap.time < 400
+      !state.activeSelection &&
+      !state.swapMode &&
+      !state.swapperActive &&
+      !state.pendingSwap &&
+      card &&
+      state.bombMode
     ) {
       state.lastTap = null;
       clearDragVisual();

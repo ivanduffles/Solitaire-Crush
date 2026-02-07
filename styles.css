@@ -5,18 +5,18 @@
 body {
   margin: 0;
   font-family: "Inter", system-ui, sans-serif;
-  background: #0f172a;
-  color: #e2e8f0;
-  display: flex;
-  justify-content: center;
-  padding: 24px;
+  background: url("assets/background.svg") center / cover no-repeat fixed;
+  color: #f8fafc;
+  min-height: 100vh;
 }
 
 .app {
-  width: min(480px, 100%);
+  width: 100%;
+  min-height: 100vh;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 20px;
+  padding: 24px;
 }
 
 .hud {
@@ -57,13 +57,16 @@ body {
 }
 
 .hud__button {
-  background: #1e293b;
-  color: #e2e8f0;
-  border: 1px solid #334155;
+  background: rgba(15, 23, 42, 0.6);
+  color: #f8fafc;
+  border: 1px solid rgba(226, 232, 240, 0.2);
   border-radius: 8px;
   padding: 8px 12px;
   font-size: 14px;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .hud__button[aria-pressed="true"] {
@@ -74,42 +77,110 @@ body {
 .board {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 8px;
-  background: #111827;
-  padding: 12px;
-  border-radius: 16px;
-  border: 1px solid #1f2937;
+  gap: 16px 12px;
+  padding: 0;
 }
 
 .card {
   aspect-ratio: 3 / 4;
-  background: #1f2937;
-  border-radius: 12px;
-  border: 1px solid #334155;
+  background: url("assets/cards/card-front.svg") center / 100% 100% no-repeat;
+  border-radius: 18px;
+  border: none;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 600;
-  font-size: 14px;
-  color: #f8fafc;
+  align-items: stretch;
+  justify-content: stretch;
+  font-weight: 700;
+  font-size: 16px;
+  color: #111827;
   position: relative;
   cursor: pointer;
   user-select: none;
-  background-size: cover;
-  background-position: center;
-  touch-action: none;
+  box-shadow: 0 14px 24px rgba(4, 33, 15, 0.35);
+  padding: 10px;
 }
 
 .card--empty {
-  background: #0b1120;
-  border-style: dashed;
+  background: url("assets/cards/card-back.svg") center / 100% 100% no-repeat;
   color: transparent;
   cursor: default;
+  box-shadow: 0 12px 20px rgba(4, 33, 15, 0.3);
 }
 
 .card--sprite {
   color: transparent;
   text-shadow: none;
+}
+
+.card__corner {
+  position: absolute;
+  top: 10px;
+  left: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.card__rank {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.card__suit {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.card__suit--large {
+  position: absolute;
+  bottom: 12px;
+  right: 12px;
+  font-size: 28px;
+  line-height: 1;
+}
+
+.card__face {
+  position: absolute;
+  inset: 20% 18%;
+  border-radius: 16px;
+  border: 2px solid rgba(17, 24, 39, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  font-weight: 600;
+  color: rgba(17, 24, 39, 0.6);
+  text-transform: uppercase;
+}
+
+.card__face--joker {
+  border: 2px dashed rgba(185, 28, 28, 0.35);
+  color: rgba(185, 28, 28, 0.75);
+}
+
+.card__joker-text {
+  position: absolute;
+  left: 10px;
+  bottom: 14px;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  color: rgba(17, 24, 39, 0.7);
+}
+
+.card__mark--red {
+  color: #d11f1f;
+}
+
+.card__mark--black {
+  color: #111827;
+}
+
+.card__mark--joker {
+  color: #b91c1c;
 }
 
 .card--selected {
@@ -137,15 +208,36 @@ body {
 
 .badge {
   position: absolute;
-  bottom: 6px;
-  right: 6px;
-  font-size: 10px;
-  background: rgba(15, 23, 42, 0.8);
-  padding: 2px 4px;
-  border-radius: 6px;
+  top: 8px;
+  right: 8px;
+  width: 22px;
+  height: 22px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.9);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 8px rgba(15, 23, 42, 0.2);
+}
+
+.badge img {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
 }
 
 .status {
   font-size: 14px;
   color: #94a3b8;
+}
+.hud__button-icon {
+  display: inline-flex;
+  width: 18px;
+  height: 18px;
+}
+
+.hud__button-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
