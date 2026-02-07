@@ -264,8 +264,6 @@ function handlePointerMove(event) {
   state.dragState.swiped = true;
   const swipeTarget = getSwipeTarget(state.dragState.start, deltaX, deltaY);
   if (!swipeTarget) {
-    clearDragVisual();
-    state.dragState = null;
     return;
   }
   handleDragSwap(swipeTarget.row, swipeTarget.col);
