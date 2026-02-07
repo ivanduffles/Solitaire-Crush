@@ -252,6 +252,14 @@ function handlePointerMove(event) {
       return;
     }
   }
+  const hoverTarget = document.elementFromPoint(event.clientX, event.clientY);
+  if (hoverTarget && hoverTarget.classList.contains("card")) {
+    const row = Number(hoverTarget.dataset.row);
+    const col = Number(hoverTarget.dataset.col);
+    if (!Number.isNaN(row) && !Number.isNaN(col)) {
+      state.dragState.current = { row, col };
+    }
+  }
   cardEl.style.transform = `translate(${deltaX}px, ${deltaY}px)`;
 }
 
@@ -277,8 +285,9 @@ function handlePointerUp(event) {
     return;
   }
   const { moved } = state.dragState;
-  const row = Number(event.currentTarget.dataset.row);
-  const col = Number(event.currentTarget.dataset.col);
+  const dropTarget = getDropTarget(event);
+  const row = dropTarget.row;
+  const col = dropTarget.col;
   const card = state.grid[row][col];
 
   if (moved) {
@@ -398,6 +407,21 @@ function handlePointerUp(event) {
   renderBoard();
 }
 
+function getDropTarget(event) {
+  const hoverTarget = document.elementFromPoint(event.clientX, event.clientY);
+  if (hoverTarget && hoverTarget.classList.contains("card")) {
+    const row = Number(hoverTarget.dataset.row);
+    const col = Number(hoverTarget.dataset.col);
+    if (!Number.isNaN(row) && !Number.isNaN(col)) {
+      return { row, col };
+    }
+  }
+  if (state.dragState) {
+    return state.dragState.current;
+  }
+  return { row: 0, col: 0 };
+}
+
 function handleDragSwap(targetRow, targetCol) {
   if (!state.dragState) {
     return;
@@ -479,6 +503,14 @@ function handleSequenceTap(row, col) {
   }
 
   selection.push({ row, col });
+  if (selection.length === 2) {
+    const pairValidation = validateSequencePair(selection);
+    if (!pairValidation.valid) {
+      clearSequenceSelection();
+      statusEl.textContent = "Illegal sequence. Selection cleared.";
+      return;
+    }
+  }
   if (selection.length >= 3) {
     const validation = validateSequence(selection);
     state.sequenceValid = validation.valid;
@@ -628,6 +660,22 @@ function validateSequence(selection) {
   }
 
   return { valid: false, usesWildcard: false };
+}
+
+function validateSequencePair(selection) {
+  if (selection.length !== 2) {
+    return { valid: true };
+  }
+  const cards = selection.map(({ row, col }) => state.grid[row][col]);
+  if (cards.some((card) => card === null)) {
+    return { valid: false };
+  }
+  const nonWildcards = cards.filter((card) => !isPotentialWildcard(card));
+  if (nonWildcards.length < 2) {
+    return { valid: true };
+  }
+  const [first, second] = nonWildcards;
+  return { valid: first.suit === second.suit };
 }
 
 function attemptSequence(cards, direction, aceValue) {
