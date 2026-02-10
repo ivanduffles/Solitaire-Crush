@@ -2,43 +2,48 @@
   --card-black: #010e1e;
   --card-red: #f70909;
   --card-gray: #808080;
+  --app-gap: clamp(8px, 1.8vmin, 16px);
+  --app-padding-inline: clamp(10px, 3vw, 20px);
+  --app-padding-block: clamp(8px, 2dvh, 16px);
+  --board-gap: clamp(2px, 0.7vmin, 8px);
+  --board-pad: clamp(4px, 1.1vmin, 12px);
 }
 
 * {
   box-sizing: border-box;
 }
 
+html,
 body {
+  height: 100%;
   margin: 0;
+}
+
+body {
   font-family: "Inter", system-ui, sans-serif;
   background: #2c723b;
   color: #e2e8f0;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 100vh;
-  min-height: 100svh;
-  height: 100svh;
   overflow: hidden;
-  overflow-x: hidden;
   overscroll-behavior: none;
 }
 
 .app {
-  width: 100%;
-  max-width: 960px;
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
-  gap: clamp(8px, 2vw, 16px);
-  padding: clamp(10px, 2vw, 20px);
-  flex: 1;
-  max-height: 100%;
-  min-height: 0;
-  height: 100%;
-  align-items: center;
+  width: min(960px, 100%);
+  margin-inline: auto;
+  min-height: 100vh;
+  min-height: 100dvh;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  gap: var(--app-gap);
+  padding-top: calc(var(--app-padding-block) + env(safe-area-inset-top));
+  padding-bottom: calc(var(--app-padding-block) + env(safe-area-inset-bottom));
+  padding-inline: calc(var(--app-padding-inline) + env(safe-area-inset-left))
+    calc(var(--app-padding-inline) + env(safe-area-inset-right));
 }
 
 .hud {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -52,12 +57,7 @@ body {
   font-size: 14px;
 }
 
-.hud__meta > div {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
+.hud__meta > div,
 .hud__score {
   display: flex;
   flex-direction: column;
@@ -85,6 +85,7 @@ body {
 }
 
 .hud__button {
+  min-height: 44px;
   background: #1e293b;
   color: #e2e8f0;
   border: 1px solid #334155;
@@ -99,47 +100,65 @@ body {
   border-color: #1d4ed8;
 }
 
+.board-viewport {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
 .board {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
   grid-template-rows: repeat(7, 1fr);
-  gap: clamp(4px, 1.6vw, 8px);
-  background: transparent;
-  padding: clamp(6px, 2vw, 12px);
+  gap: var(--board-gap);
+  padding: var(--board-pad);
   border-radius: 16px;
   border: 1px solid #1f2937;
-  flex: 1;
-  min-height: 0;
-  height: auto;
-  aspect-ratio: 3 / 4;
-  width: min(100%, 75svh);
-  max-width: 100%;
-  max-height: 100%;
-  align-self: center;
-  justify-self: center;
+  background: transparent;
   touch-action: none;
-}
 
-.card {
-  background: #1f2937;
-  border-radius: 12px;
-  border: 1px solid #334155;
-  border: 1px solid rgba(0, 0, 0, 0.25);
-}
-
-.card {
   aspect-ratio: 3 / 4;
+  height: 100%;
+  width: auto;
+  max-height: 100%;
+  max-width: 100%;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+@media (max-height: 740px) {
+  :root {
+    --board-gap: clamp(2px, 0.55vmin, 5px);
+    --board-pad: clamp(3px, 0.8vmin, 8px);
+  }
+}
+
+@media (orientation: landscape) {
+  .app {
+    --app-padding-block: clamp(6px, 1.1dvh, 10px);
+  }
+}
+
+.card {
+  aspect-ratio: 6 / 8;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+
   background: #ffffff;
   border-radius: 6px;
-  border: 1px solid #bfbfbf;
+  border: 1px solid rgba(0, 0, 0, 0.25);
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 100%;
-  height: 100%;
-  aspect-ratio: 6 / 8;
   font-weight: 600;
-  font-size: clamp(10px, 2.2vmin, 14px);
+  font-size: clamp(12px, 3.3vmin, 22px);
   color: var(--card-black);
   position: relative;
   cursor: pointer;
@@ -168,11 +187,11 @@ body {
 
 .card__content {
   position: absolute;
-  inset: 8px;
+  inset: clamp(2px, 0.8vmin, 8px);
 }
 
 .card__rank {
-  font-size: clamp(12px, 2.6vmin, 18px);
+  font-size: clamp(16px, 3.8vmin, 30px);
   font-weight: 700;
   line-height: 1;
 }
@@ -181,8 +200,8 @@ body {
   position: absolute;
   right: 0;
   bottom: 0;
-  width: 80%;
-  height: 80%;
+  width: 60%;
+  height: 60%;
 }
 
 .card__suit svg {
@@ -216,8 +235,8 @@ body {
 
 .card__joker-icon {
   margin-left: auto;
-  width: 44px;
-  height: 44px;
+  width: min(44px, 55%);
+  aspect-ratio: 1 / 1;
 }
 
 .card__joker-icon svg {
@@ -230,6 +249,27 @@ body {
   color: transparent;
   text-shadow: none;
 }
+
+.badge {
+  position: absolute;
+  top: clamp(2px, 0.7vmin, 6px);
+  right: clamp(2px, 0.7vmin, 6px);
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: clamp(9px, 1.7vmin, 11px);
+  font-weight: 700;
+  line-height: 1;
+  color: #f8fafc;
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(148, 163, 184, 0.55);
+  pointer-events: none;
+}
+
 
 .card--selected {
   outline: 2px solid #38bdf8;
@@ -259,25 +299,16 @@ body {
   will-change: transform;
 }
 
-.badge {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  font-size: 10px;
-  background: rgba(15, 23, 42, 0.8);
-  color: #ffffff;
-  padding: 2px 4px;
-  border-radius: 6px;
-}
-
 .status {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  flex: 0 0 auto;
+  text-align: center;
   font-size: 14px;
-  color: #e2e8f0;
-  text-shadow: 0 1px 2px rgba(15, 23, 42, 0.5);
+  color: #dbeafe;
+  text-shadow: 0 1px 2px rgba(15, 23, 42, 0.45);
 }
 
 .clear-button {
