@@ -1006,8 +1006,18 @@ async function clearSelectedSequence() {
   }
 
   const selectedCells = [...state.sequenceSelection];
-  const selectedCardElements = selectedCells
-    .map(({ row, col }) => boardEl.querySelector(`.card[data-row="${row}"][data-col="${col}"]`))
+  const selectedCardSnapshots = selectedCells
+    .map(({ row, col }) => {
+      const cardEl = boardEl.querySelector(`.card[data-row="${row}"][data-col="${col}"]`);
+      if (!cardEl) {
+        return null;
+      }
+      const rect = cardEl.getBoundingClientRect();
+      return {
+        rect,
+        node: cardEl.cloneNode(true),
+      };
+    })
     .filter(Boolean);
   const scoreResult = applyScore(state.sequenceSelection.length, validation.usesWildcard, {
     deferScoreText: true,
@@ -1025,7 +1035,7 @@ async function clearSelectedSequence() {
   state.scoreAnimationRunning = true;
   try {
     await playScoreAnimation({
-      cards: selectedCardElements,
+      cardSnapshots: selectedCardSnapshots,
       pointsEarned: scoreResult.points,
     });
     await animateScoreCountUp(scoreResult.oldScore, scoreResult.newScore, scoreEl);
@@ -1108,9 +1118,8 @@ function animateWithFallback(element, keyframes, options) {
   });
 }
 
-async function playScoreAnimation({ cards = [], pointsEarned = 0 }) {
-  const visibleCards = cards.filter((cardEl) => cardEl && cardEl.isConnected);
-  if (!visibleCards.length) {
+async function playScoreAnimation({ cardSnapshots = [], pointsEarned = 0 }) {
+  if (!cardSnapshots.length) {
     return;
   }
 
@@ -1127,9 +1136,8 @@ async function playScoreAnimation({ cards = [], pointsEarned = 0 }) {
   pointsLabel.className = "score-fx__points";
   pointsLabel.textContent = `+${pointsEarned} points`;
 
-  visibleCards.forEach((cardEl) => {
-    const rect = cardEl.getBoundingClientRect();
-    const clone = cardEl.cloneNode(true);
+  cardSnapshots.forEach(({ rect, node }) => {
+    const clone = node.cloneNode(true);
     clone.classList.add("score-fx__card");
     clone.style.left = `${rect.left}px`;
     clone.style.top = `${rect.top}px`;
@@ -1143,8 +1151,8 @@ async function playScoreAnimation({ cards = [], pointsEarned = 0 }) {
   document.body.appendChild(overlay);
   document.body.appendChild(layer);
 
-  const firstRect = visibleCards[0].getBoundingClientRect();
-  const lastRect = visibleCards[visibleCards.length - 1].getBoundingClientRect();
+  const firstRect = cardSnapshots[0].rect;
+  const lastRect = cardSnapshots[cardSnapshots.length - 1].rect;
   const clusterCenterX = (firstRect.left + lastRect.right) / 2;
   const clusterCenterY = (firstRect.top + lastRect.bottom) / 2;
   const viewportCenterX = window.innerWidth / 2;
