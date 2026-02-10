@@ -599,7 +599,16 @@ function handleSequenceTap(row, col) {
   );
   if (tappedIndex !== -1) {
     selection.splice(tappedIndex, 1);
-    if (selection.length < 2) {
+    if (selection.length >= 2) {
+      const [first, second] = selection;
+      if (first.row === second.row) {
+        state.sequenceDirection = "row";
+      } else if (first.col === second.col) {
+        state.sequenceDirection = "col";
+      } else {
+        state.sequenceDirection = null;
+      }
+    } else {
       state.sequenceDirection = null;
     }
     if (selection.length >= 3) {
@@ -827,6 +836,9 @@ function validateSequence(selection) {
   if (selection.length < 3) {
     return { valid: false, usesWildcard: false };
   }
+  if (!isContiguousLineSelection(selection)) {
+    return { valid: false, usesWildcard: false };
+  }
   const cards = selection.map(({ row, col }) => state.grid[row][col]);
   if (cards.some((card) => card === null)) {
     return { valid: false, usesWildcard: false };
@@ -854,6 +866,21 @@ function validateSequence(selection) {
   }
 
   return { valid: false, usesWildcard: false };
+}
+
+function isContiguousLineSelection(selection) {
+  if (selection.length < 2) {
+    return true;
+  }
+  for (let i = 1; i < selection.length; i += 1) {
+    const prev = selection[i - 1];
+    const current = selection[i];
+    const distance = Math.abs(prev.row - current.row) + Math.abs(prev.col - current.col);
+    if (distance !== 1) {
+      return false;
+    }
+  }
+  return true;
 }
 
 function validateSequencePair(selection) {
