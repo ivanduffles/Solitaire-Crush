@@ -72,6 +72,7 @@ const bombCountEl = document.getElementById("freeBombCount");
 const baseFactorEl = document.getElementById("baseFactorValue");
 const chainValueEl = document.getElementById("chainValue");
 const statusEl = document.getElementById("statusMessage");
+const clearSequenceButton = document.getElementById("clearSequenceButton");
 const freeSwapButton = document.getElementById("freeSwapButton");
 const freeBombButton = document.getElementById("freeBombButton");
 const SWIPE_THRESHOLD_RATIO = 0.35;
@@ -285,6 +286,7 @@ function renderBoard() {
   if (prevRects) {
     requestAnimationFrame(() => animateCardMoves(prevRects));
   }
+  updateClearButtonVisibility();
   state.animateMoves = false;
 }
 
@@ -466,7 +468,7 @@ function handlePointerUp(event) {
       return;
     }
     state.lastTap = { row, col, time: now };
-    statusEl.textContent = "Sequence selected. Double tap to clear.";
+    statusEl.textContent = "Sequence selected. Double tap to clear or tap Clear.";
     renderBoard();
     clearDragVisual();
     state.dragState = null;
@@ -594,8 +596,37 @@ function moveCardToEmpty(startRow, startCol, targetRow, targetCol) {
 function handleSequenceTap(row, col) {
   state.lastTap = null;
   const selection = state.sequenceSelection;
-  if (selection.some((cell) => cell.row === row && cell.col === col)) {
-    statusEl.textContent = "Card already selected.";
+  const tappedIndex = selection.findIndex(
+    (cell) => cell.row === row && cell.col === col
+  );
+  if (tappedIndex !== -1) {
+    selection.splice(tappedIndex, 1);
+    if (selection.length >= 2) {
+      const [first, second] = selection;
+      if (first.row === second.row) {
+        state.sequenceDirection = "row";
+      } else if (first.col === second.col) {
+        state.sequenceDirection = "col";
+      } else {
+        state.sequenceDirection = null;
+      }
+    } else {
+      state.sequenceDirection = null;
+    }
+    if (selection.length >= 3) {
+      const validation = validateSequence(selection);
+      state.sequenceValid = validation.valid;
+      statusEl.textContent = validation.valid
+        ? "Sequence selected. Double tap to clear."
+        : "Sequence in progress.";
+    } else if (selection.length === 0) {
+      state.sequenceValid = false;
+      state.sequenceDirection = null;
+      statusEl.textContent = "Selection cleared.";
+    } else {
+      state.sequenceValid = false;
+      statusEl.textContent = "Card deselected.";
+    }
     return;
   }
   if (selection.length === 0) {
@@ -807,6 +838,9 @@ function validateSequence(selection) {
   if (selection.length < 3) {
     return { valid: false, usesWildcard: false };
   }
+  if (!isContiguousLineSelection(selection)) {
+    return { valid: false, usesWildcard: false };
+  }
   const cards = selection.map(({ row, col }) => state.grid[row][col]);
   if (cards.some((card) => card === null)) {
     return { valid: false, usesWildcard: false };
@@ -834,6 +868,21 @@ function validateSequence(selection) {
   }
 
   return { valid: false, usesWildcard: false };
+}
+
+function isContiguousLineSelection(selection) {
+  if (selection.length < 2) {
+    return true;
+  }
+  for (let i = 1; i < selection.length; i += 1) {
+    const prev = selection[i - 1];
+    const current = selection[i];
+    const distance = Math.abs(prev.row - current.row) + Math.abs(prev.col - current.col);
+    if (distance !== 1) {
+      return false;
+    }
+  }
+  return true;
 }
 
 function validateSequencePair(selection) {
@@ -1006,6 +1055,13 @@ function init() {
   renderBoard();
 }
 
+function updateClearButtonVisibility() {
+  if (!clearSequenceButton) {
+    return;
+  }
+  clearSequenceButton.hidden = !(state.sequenceValid && state.sequenceSelection.length >= 3);
+}
+
 function updateHud() {
   scoreEl.textContent = state.score;
   swapCountEl.textContent = state.freeSwapCount;
@@ -1031,6 +1087,14 @@ freeSwapButton.addEventListener("click", () => {
     : "Swap mode off.";
   updateHud();
   renderBoard();
+});
+
+clearSequenceButton?.addEventListener("click", () => {
+  if (!state.sequenceValid || state.sequenceSelection.length < 3) {
+    return;
+  }
+  state.lastTap = null;
+  clearSelectedSequence();
 });
 
 freeBombButton.addEventListener("click", () => {
