@@ -643,25 +643,16 @@ function handlePointerUp(event) {
 
   if (state.bombMode) {
     if (!card) {
-      state.lastTap = null;
+      state.doubleTapState = null;
       state.dragState = null;
       return;
     }
-    if (
-      !state.activeSelection &&
-      !state.swapMode &&
-      !state.swapperActive &&
-      !state.pendingSwap &&
-      card &&
-      (state.bombMode || card.isBomb)
-    ) {
-      state.lastTap = null;
+    if (detectDoubleTap({ row, col }, now)) {
       clearDragVisual();
       state.dragState = null;
       clearSingleCard(row, col, true);
       return;
     }
-    state.lastTap = { row, col, time: now };
     statusEl.textContent = "Bomb ready: double tap to clear.";
     renderBoard();
     clearDragVisual();
