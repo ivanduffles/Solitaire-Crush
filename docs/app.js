@@ -32,6 +32,7 @@ const bombCountEl = document.getElementById("freeBombCount");
 const baseFactorEl = document.getElementById("baseFactorValue");
 const chainValueEl = document.getElementById("chainValue");
 const statusEl = document.getElementById("statusMessage");
+const clearSequenceButton = document.getElementById("clearSequenceButton");
 const freeSwapButton = document.getElementById("freeSwapButton");
 const freeBombButton = document.getElementById("freeBombButton");
 
@@ -187,6 +188,7 @@ function renderBoard() {
       boardEl.appendChild(cell);
     }
   }
+  updateClearButtonVisibility();
 }
 
 function handlePointerDown(event) {
@@ -644,6 +646,13 @@ function init() {
   renderBoard();
 }
 
+function updateClearButtonVisibility() {
+  if (!clearSequenceButton) {
+    return;
+  }
+  clearSequenceButton.hidden = !(state.sequenceValid && state.sequenceSelection.length >= 3);
+}
+
 function updateHud() {
   scoreEl.textContent = state.score;
   swapCountEl.textContent = state.freeSwapCount;
@@ -669,6 +678,13 @@ freeSwapButton.addEventListener("click", () => {
     : "Swap mode off.";
   updateHud();
   renderBoard();
+});
+
+clearSequenceButton?.addEventListener("click", () => {
+  if (!state.sequenceValid || state.sequenceSelection.length < 3) {
+    return;
+  }
+  clearSelectedSequence();
 });
 
 freeBombButton.addEventListener("click", () => {

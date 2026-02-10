@@ -72,6 +72,7 @@ const bombCountEl = document.getElementById("freeBombCount");
 const baseFactorEl = document.getElementById("baseFactorValue");
 const chainValueEl = document.getElementById("chainValue");
 const statusEl = document.getElementById("statusMessage");
+const clearSequenceButton = document.getElementById("clearSequenceButton");
 const freeSwapButton = document.getElementById("freeSwapButton");
 const freeBombButton = document.getElementById("freeBombButton");
 const SWIPE_THRESHOLD_RATIO = 0.35;
@@ -285,6 +286,7 @@ function renderBoard() {
   if (prevRects) {
     requestAnimationFrame(() => animateCardMoves(prevRects));
   }
+  updateClearButtonVisibility();
   state.animateMoves = false;
 }
 
@@ -442,6 +444,31 @@ function handlePointerUp(event) {
     }
     state.lastTap = { row, col, time: now };
     statusEl.textContent = "Bomb ready: double tap to clear.";
+    renderBoard();
+    clearDragVisual();
+    state.dragState = null;
+    return;
+  }
+
+  const isInSequence = state.sequenceSelection.some(
+    (cell) => cell.row === row && cell.col === col
+  );
+  if (state.sequenceValid && state.sequenceSelection.length >= 3 && isInSequence) {
+    const now = performance.now();
+    if (
+      state.lastTap &&
+      state.lastTap.row === row &&
+      state.lastTap.col === col &&
+      now - state.lastTap.time < 400
+    ) {
+      state.lastTap = null;
+      clearDragVisual();
+      state.dragState = null;
+      clearSelectedSequence();
+      return;
+    }
+    state.lastTap = { row, col, time: now };
+    statusEl.textContent = "Sequence selected. Double tap to clear or tap Clear.";
     renderBoard();
     clearDragVisual();
     state.dragState = null;
@@ -1028,6 +1055,13 @@ function init() {
   renderBoard();
 }
 
+function updateClearButtonVisibility() {
+  if (!clearSequenceButton) {
+    return;
+  }
+  clearSequenceButton.hidden = !(state.sequenceValid && state.sequenceSelection.length >= 3);
+}
+
 function updateHud() {
   scoreEl.textContent = state.score;
   swapCountEl.textContent = state.freeSwapCount;
@@ -1053,6 +1087,14 @@ freeSwapButton.addEventListener("click", () => {
     : "Swap mode off.";
   updateHud();
   renderBoard();
+});
+
+clearSequenceButton?.addEventListener("click", () => {
+  if (!state.sequenceValid || state.sequenceSelection.length < 3) {
+    return;
+  }
+  state.lastTap = null;
+  clearSelectedSequence();
 });
 
 freeBombButton.addEventListener("click", () => {
