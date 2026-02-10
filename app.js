@@ -137,44 +137,48 @@ async function playScoreAnimation({ cards, pointsEarned }) {
   pointsLabel.className = "score-points-label";
   pointsLabel.textContent = `+${pointsEarned} points`;
 
-  document.body.append(overlay, flyingGroup, pointsLabel);
-
   const cardRects = cards.map((cardEl) => cardEl.getBoundingClientRect());
-  const groupRect = cardRects.reduce(
-    (acc, rect) => ({
-      left: Math.min(acc.left, rect.left),
-      top: Math.min(acc.top, rect.top),
-      right: Math.max(acc.right, rect.right),
-      bottom: Math.max(acc.bottom, rect.bottom),
-    }),
-    { left: Infinity, top: Infinity, right: -Infinity, bottom: -Infinity }
-  );
-
-  flyingGroup.style.left = `${groupRect.left}px`;
-  flyingGroup.style.top = `${groupRect.top}px`;
-  flyingGroup.style.width = `${groupRect.right - groupRect.left}px`;
-  flyingGroup.style.height = `${groupRect.bottom - groupRect.top}px`;
-
-  for (let i = 0; i < cards.length; i += 1) {
-    const clone = cards[i].cloneNode(true);
-    clone.classList.add("score-card-clone");
-    const rect = cardRects[i];
-    clone.style.left = `${rect.left - groupRect.left}px`;
-    clone.style.top = `${rect.top - groupRect.top}px`;
-    clone.style.width = `${rect.width}px`;
-    clone.style.height = `${rect.height}px`;
-    flyingGroup.appendChild(clone);
-  }
-
+  const gap = 8;
   const centerX = window.innerWidth / 2;
   const centerY = window.innerHeight / 2;
-  const groupCenterX = groupRect.left + (groupRect.right - groupRect.left) / 2;
-  const groupCenterY = groupRect.top + (groupRect.bottom - groupRect.top) / 2;
-  const toCenterX = centerX - groupCenterX;
-  const toCenterY = centerY - groupCenterY;
 
+  const totalWidth =
+    cardRects.reduce((sum, rect) => sum + rect.width, 0) +
+    gap * Math.max(0, cardRects.length - 1);
+  let cursorLeft = centerX - totalWidth / 2;
+
+  const clones = cardRects.map((rect, index) => {
+    const clone = cards[index].cloneNode(true);
+    clone.classList.remove(
+      "card--selected",
+      "card--pending",
+      "card--swapper",
+      "card--dragging",
+      "card--animating"
+    );
+    clone.classList.add("score-card-clone");
+    clone.style.left = `${rect.left}px`;
+    clone.style.top = `${rect.top}px`;
+    clone.style.width = `${rect.width}px`;
+    clone.style.height = `${rect.height}px`;
+    const targetLeft = cursorLeft;
+    cursorLeft += rect.width + gap;
+    const targetTop = centerY - rect.height / 2;
+    return {
+      clone,
+      startLeft: rect.left,
+      startTop: rect.top,
+      targetLeft,
+      targetTop,
+    };
+  });
+
+  clones.forEach(({ clone }) => flyingGroup.appendChild(clone));
   pointsLabel.style.left = `${centerX}px`;
   pointsLabel.style.top = `${centerY - 48}px`;
+  document.body.append(overlay, flyingGroup, pointsLabel);
+
+  await new Promise((resolve) => requestAnimationFrame(resolve));
 
   await Promise.all([
     animateElement(overlay, [{ opacity: 0 }, { opacity: 1 }], {
@@ -182,13 +186,18 @@ async function playScoreAnimation({ cards, pointsEarned }) {
       easing: "ease-out",
       fill: "forwards",
     }),
-    animateElement(
-      flyingGroup,
-      [
-        { transform: "translate(0px, 0px)", opacity: 1 },
-        { transform: `translate(${toCenterX}px, ${toCenterY}px)`, opacity: 1 },
-      ],
-      { duration: 200, easing: "ease-out", fill: "forwards" }
+    ...clones.map(({ clone, startLeft, startTop, targetLeft, targetTop }) =>
+      animateElement(
+        clone,
+        [
+          { transform: "translate(0px, 0px)", opacity: 1 },
+          {
+            transform: `translate(${targetLeft - startLeft}px, ${targetTop - startTop}px)`,
+            opacity: 1,
+          },
+        ],
+        { duration: 200, easing: "ease-out", fill: "forwards" }
+      )
     ),
   ]);
 
@@ -202,13 +211,21 @@ async function playScoreAnimation({ cards, pointsEarned }) {
   );
 
   await Promise.all([
-    animateElement(
-      flyingGroup,
-      [
-        { transform: `translate(${toCenterX}px, ${toCenterY}px)`, opacity: 1 },
-        { transform: `translate(${toCenterX}px, ${toCenterY - window.innerHeight * 0.6}px)`, opacity: 0 },
-      ],
-      { duration: 320, easing: "ease-in", fill: "forwards" }
+    ...clones.map(({ clone, startLeft, startTop, targetLeft, targetTop }) =>
+      animateElement(
+        clone,
+        [
+          {
+            transform: `translate(${targetLeft - startLeft}px, ${targetTop - startTop}px)`,
+            opacity: 1,
+          },
+          {
+            transform: `translate(${targetLeft - startLeft}px, ${targetTop - startTop - window.innerHeight * 0.6}px)`,
+            opacity: 0,
+          },
+        ],
+        { duration: 320, easing: "ease-in", fill: "forwards" }
+      )
     ),
     animateElement(
       pointsLabel,
@@ -958,6 +975,7 @@ function getCardRects() {
 }
 
 function animateCardMoves(prevRects) {
+  const animations = [];
   const cards = boardEl.querySelectorAll(".card[data-card-id]");
   cards.forEach((cardEl) => {
     const cardId = cardEl.dataset.cardId;
@@ -972,13 +990,29 @@ function animateCardMoves(prevRects) {
       return;
     }
     cardEl.style.transform = `translate(${deltaX}px, ${deltaY}px)`;
-    requestAnimationFrame(() => {
-      cardEl.classList.add("card--animating");
-      cardEl.style.transform = "";
-      const cleanup = () => {
-        cardEl.classList.remove("card--animating");
-      };
-      cardEl.addEventListener("transitionend", cleanup, { once: true });
+    animations.push(
+      new Promise((resolve) => {
+        requestAnimationFrame(() => {
+          cardEl.classList.add("card--animating");
+          cardEl.style.transform = "";
+          let done = false;
+          const cleanup = () => {
+            if (done) {
+              return;
+            }
+            done = true;
+            cardEl.classList.remove("card--animating");
+            resolve();
+          };
+          cardEl.addEventListener("transitionend", cleanup, { once: true });
+          window.setTimeout(cleanup, 280);
+        });
+      })
+    );
+  });
+  return Promise.all(animations).then(() => {
+    cards.forEach((cardEl) => {
+      cardEl.classList.remove("card--animating");
     });
   });
 }
@@ -1157,7 +1191,7 @@ function clearSingleCard(row, col, consumesFreeBomb) {
   renderBoard();
 }
 
-function clearSelectedSequence() {
+async function clearSelectedSequence() {
   if (!state.sequenceValid || state.sequenceSelection.length < 3) {
     statusEl.textContent = "No valid sequence selected.";
     return;
@@ -1172,6 +1206,7 @@ function clearSelectedSequence() {
 
   const selectedCells = [...state.sequenceSelection];
   const animationCards = getSequenceCardElements(selectedCells);
+  const prevRects = getCardRects();
   const oldScore = state.score;
   const pointsEarned = applyScore(selectedCells.length, validation.usesWildcard);
   const newScore = state.score;
@@ -1185,10 +1220,9 @@ function clearSelectedSequence() {
   updateHud({ preserveScore: true });
   statusEl.textContent = "Sequence cleared!";
   renderBoard();
-
-  playScoreAnimation({ cards: animationCards, pointsEarned }).then(() =>
-    animateScoreCountUp(oldScore, newScore, scoreEl)
-  );
+  await animateCardMoves(prevRects);
+  await playScoreAnimation({ cards: animationCards, pointsEarned });
+  await animateScoreCountUp(oldScore, newScore, scoreEl);
 }
 
 function collapseColumns() {

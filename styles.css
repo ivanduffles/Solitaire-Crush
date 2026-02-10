@@ -295,7 +295,7 @@ body {
 }
 
 .card--animating {
-  transition: transform 1000ms ease;
+  transition: transform 220ms ease;
   will-change: transform;
 }
 
@@ -339,15 +339,23 @@ body {
 
 .score-fly-group {
   position: fixed;
+  inset: 0;
   z-index: 1000;
   pointer-events: none;
-  transform: translate(0, 0);
-  opacity: 1;
 }
 
 .score-card-clone {
-  position: absolute;
+  position: fixed;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   margin: 0;
+  border-radius: 6px;
+  border: 1px solid rgba(0, 0, 0, 0.25);
+  background: #ffffff;
+  overflow: hidden;
+  transform: translate(0, 0);
+  opacity: 1;
   pointer-events: none;
 }
 
