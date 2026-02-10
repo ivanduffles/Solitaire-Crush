@@ -115,12 +115,16 @@ function detectDoubleTap({ row, col }, now = performance.now()) {
   return false;
 }
 
-function getSequenceCardElements(selection) {
+function getSequenceCardSnapshots(selection) {
   return selection
     .map(({ row, col }) =>
       boardEl.querySelector(`.card[data-row="${row}"][data-col="${col}"]`)
     )
-    .filter(Boolean);
+    .filter(Boolean)
+    .map((cardEl) => ({
+      rect: cardEl.getBoundingClientRect(),
+      clone: cardEl.cloneNode(true),
+    }));
 }
 
 async function playScoreAnimation({ cards, pointsEarned }) {
@@ -137,7 +141,23 @@ async function playScoreAnimation({ cards, pointsEarned }) {
   pointsLabel.className = "score-points-label";
   pointsLabel.textContent = `+${pointsEarned} points`;
 
-  const cardRects = cards.map((cardEl) => cardEl.getBoundingClientRect());
+  const snapshots = cards
+    .map((entry) => {
+      if (entry?.rect && entry?.clone) {
+        return entry;
+      }
+      if (entry instanceof Element) {
+        return { rect: entry.getBoundingClientRect(), clone: entry.cloneNode(true) };
+      }
+      return null;
+    })
+    .filter(Boolean);
+
+  if (!snapshots.length) {
+    return;
+  }
+
+  const cardRects = snapshots.map((entry) => entry.rect);
   const gap = 8;
   const centerX = window.innerWidth / 2;
   const centerY = window.innerHeight / 2;
@@ -148,7 +168,7 @@ async function playScoreAnimation({ cards, pointsEarned }) {
   let cursorLeft = centerX - totalWidth / 2;
 
   const clones = cardRects.map((rect, index) => {
-    const clone = cards[index].cloneNode(true);
+    const clone = snapshots[index].clone;
     clone.classList.remove(
       "card--selected",
       "card--pending",
@@ -494,7 +514,7 @@ function handlePointerDown(event) {
   }
   event.preventDefault();
   // Drag swaps only apply in normal mode with a real card.
-  if (state.bombMode || state.swapMode || state.swapperActive || state.pendingSwap) {
+  if (state.swapMode || state.swapperActive || state.pendingSwap) {
     return;
   }
   const row = Number(event.currentTarget.dataset.row);
@@ -1205,7 +1225,7 @@ async function clearSelectedSequence() {
   }
 
   const selectedCells = [...state.sequenceSelection];
-  const animationCards = getSequenceCardElements(selectedCells);
+  const animationCards = getSequenceCardSnapshots(selectedCells);
   const prevRects = getCardRects();
   const oldScore = state.score;
   const pointsEarned = applyScore(selectedCells.length, validation.usesWildcard);
