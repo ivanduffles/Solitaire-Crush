@@ -594,8 +594,28 @@ function moveCardToEmpty(startRow, startCol, targetRow, targetCol) {
 function handleSequenceTap(row, col) {
   state.lastTap = null;
   const selection = state.sequenceSelection;
-  if (selection.some((cell) => cell.row === row && cell.col === col)) {
-    statusEl.textContent = "Card already selected.";
+  const tappedIndex = selection.findIndex(
+    (cell) => cell.row === row && cell.col === col
+  );
+  if (tappedIndex !== -1) {
+    selection.splice(tappedIndex, 1);
+    if (selection.length < 2) {
+      state.sequenceDirection = null;
+    }
+    if (selection.length >= 3) {
+      const validation = validateSequence(selection);
+      state.sequenceValid = validation.valid;
+      statusEl.textContent = validation.valid
+        ? "Sequence selected. Double tap to clear."
+        : "Sequence in progress.";
+    } else if (selection.length === 0) {
+      state.sequenceValid = false;
+      state.sequenceDirection = null;
+      statusEl.textContent = "Selection cleared.";
+    } else {
+      state.sequenceValid = false;
+      statusEl.textContent = "Card deselected.";
+    }
     return;
   }
   if (selection.length === 0) {
