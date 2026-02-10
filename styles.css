@@ -79,6 +79,10 @@ body {
   text-shadow: 0 1px 2px rgba(15, 23, 42, 0.5);
 }
 
+#scoreValue {
+  display: inline-block;
+}
+
 .hud__counts {
   display: flex;
   gap: 8px;
@@ -268,6 +272,64 @@ body {
   background: rgba(15, 23, 42, 0.85);
   border: 1px solid rgba(148, 163, 184, 0.55);
   pointer-events: none;
+}
+
+/* Score points animation */
+.score-fx__overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.25);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 900;
+}
+
+.score-fx__layer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 910;
+}
+
+.score-fx__group {
+  position: absolute;
+  inset: 0;
+}
+
+.score-fx__card {
+  position: fixed;
+  margin: 0;
+  will-change: transform, opacity;
+}
+
+.score-fx__points {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -130%) scale(0.9);
+  font-size: clamp(28px, 6vw, 54px);
+  font-weight: 800;
+  color: #f8fafc;
+  text-shadow: 0 8px 20px rgba(0, 0, 0, 0.45);
+  opacity: 0;
+  z-index: 920;
+  white-space: nowrap;
+  will-change: transform, opacity;
+}
+
+.score-blink {
+  animation: score-blink 180ms ease-in-out infinite alternate;
+}
+
+@keyframes score-blink {
+  from {
+    opacity: 1;
+    text-shadow: 0 0 0 rgba(255, 255, 255, 0);
+  }
+  to {
+    opacity: 0.85;
+    text-shadow: 0 0 8px rgba(255, 255, 255, 0.55);
+  }
 }
 
 

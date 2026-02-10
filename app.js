@@ -62,6 +62,8 @@ const state = {
   gameOver: false,
   dragState: null,
   lastTap: null,
+  doubleTapLockUntil: 0,
+  scoreAnimationRunning: false,
   animateMoves: false,
 };
 
@@ -452,20 +454,18 @@ function handlePointerUp(event) {
     (cell) => cell.row === row && cell.col === col
   );
   if (state.sequenceValid && state.sequenceSelection.length >= 3 && isInSequence) {
-    const now = performance.now();
     if (
-      state.lastTap &&
-      state.lastTap.row === row &&
-      state.lastTap.col === col &&
-      now - state.lastTap.time < 400
+      detectDoubleTap(event, {
+        key: `${row}-${col}`,
+        maxDelayMs: 250,
+        maxDistancePx: 28,
+      })
     ) {
-      state.lastTap = null;
       clearDragVisual();
       state.dragState = null;
       clearSelectedSequence();
       return;
     }
-    state.lastTap = { row, col, time: now };
     statusEl.textContent = "Sequence selected. Double tap to clear.";
     renderBoard();
     clearDragVisual();
@@ -935,6 +935,42 @@ function clearSequenceSelection() {
   state.sequenceDirection = null;
 }
 
+function detectDoubleTap(event, options = {}) {
+  const { key = "", maxDelayMs = 250, maxDistancePx = 28 } = options;
+  const now = performance.now();
+  if (now < state.doubleTapLockUntil) {
+    return false;
+  }
+
+  const previousTap = state.lastTap;
+  const currentTap = {
+    key,
+    time: now,
+    x: event.clientX,
+    y: event.clientY,
+  };
+
+  if (!previousTap) {
+    state.lastTap = currentTap;
+    return false;
+  }
+
+  const deltaTime = now - previousTap.time;
+  const dx = currentTap.x - previousTap.x;
+  const dy = currentTap.y - previousTap.y;
+  const distance = Math.hypot(dx, dy);
+  const isSameArea = previousTap.key === key && distance <= maxDistancePx;
+
+  if (isSameArea && deltaTime <= maxDelayMs) {
+    state.lastTap = null;
+    state.doubleTapLockUntil = now + 140;
+    return true;
+  }
+
+  state.lastTap = currentTap;
+  return false;
+}
+
 function clearSingleCard(row, col, consumesFreeBomb) {
   if (!state.grid[row][col]) {
     return;
@@ -952,8 +988,12 @@ function clearSingleCard(row, col, consumesFreeBomb) {
   renderBoard();
 }
 
-function clearSelectedSequence() {
-  if (!state.sequenceValid || state.sequenceSelection.length < 3) {
+async function clearSelectedSequence() {
+  if (
+    state.scoreAnimationRunning ||
+    !state.sequenceValid ||
+    state.sequenceSelection.length < 3
+  ) {
     statusEl.textContent = "No valid sequence selected.";
     return;
   }
@@ -965,15 +1005,33 @@ function clearSelectedSequence() {
     return;
   }
 
-  state.sequenceSelection.forEach(({ row, col }) => {
+  const selectedCells = [...state.sequenceSelection];
+  const selectedCardElements = selectedCells
+    .map(({ row, col }) => boardEl.querySelector(`.card[data-row="${row}"][data-col="${col}"]`))
+    .filter(Boolean);
+  const scoreResult = applyScore(state.sequenceSelection.length, validation.usesWildcard, {
+    deferScoreText: true,
+  });
+
+  selectedCells.forEach(({ row, col }) => {
     state.grid[row][col] = null;
   });
   collapseColumns();
-  applyScore(state.sequenceSelection.length, validation.usesWildcard);
   dropCard();
   clearSequenceSelection();
   statusEl.textContent = "Sequence cleared!";
   renderBoard();
+
+  state.scoreAnimationRunning = true;
+  try {
+    await playScoreAnimation({
+      cards: selectedCardElements,
+      pointsEarned: scoreResult.points,
+    });
+    await animateScoreCountUp(scoreResult.oldScore, scoreResult.newScore, scoreEl);
+  } finally {
+    state.scoreAnimationRunning = false;
+  }
 }
 
 function collapseColumns() {
@@ -990,13 +1048,20 @@ function collapseColumns() {
   }
 }
 
-function applyScore(length, usesWildcard) {
+function applyScore(length, usesWildcard, options = {}) {
+  const { deferScoreText = false } = options;
   const canastraBonus = length === 7 && !usesWildcard ? 2 : 1;
   const points = length * state.baseFactor * state.chainMultiplier * canastraBonus;
+  const oldScore = state.score;
   state.score += points;
   state.baseFactor += 1;
   state.chainMultiplier += 1;
-  updateHud();
+  updateHud({ skipScore: deferScoreText });
+  return {
+    oldScore,
+    newScore: state.score,
+    points,
+  };
 }
 
 function init() {
@@ -1006,14 +1071,159 @@ function init() {
   renderBoard();
 }
 
-function updateHud() {
-  scoreEl.textContent = state.score;
+function updateHud(options = {}) {
+  const { skipScore = false } = options;
+  if (!skipScore) {
+    scoreEl.textContent = state.score;
+  }
   swapCountEl.textContent = state.freeSwapCount;
   bombCountEl.textContent = state.freeBombCount;
   baseFactorEl.textContent = state.baseFactor;
   chainValueEl.textContent = state.chainMultiplier;
   freeSwapButton.setAttribute("aria-pressed", state.swapMode ? "true" : "false");
   freeBombButton.setAttribute("aria-pressed", state.bombMode ? "true" : "false");
+}
+
+function animateWithFallback(element, keyframes, options) {
+  if (typeof element.animate === "function") {
+    const animation = element.animate(keyframes, options);
+    return animation.finished.catch(() => undefined);
+  }
+
+  return new Promise((resolve) => {
+    const duration = options.duration || 0;
+    const easing = options.easing || "ease";
+    const fill = options.fill || "forwards";
+    const finalFrame = keyframes[keyframes.length - 1] || {};
+    element.style.transition = `all ${duration}ms ${easing}`;
+    requestAnimationFrame(() => {
+      Object.assign(element.style, finalFrame);
+      setTimeout(() => {
+        if (fill !== "forwards") {
+          element.style.transition = "";
+        }
+        resolve();
+      }, duration);
+    });
+  });
+}
+
+async function playScoreAnimation({ cards = [], pointsEarned = 0 }) {
+  const visibleCards = cards.filter((cardEl) => cardEl && cardEl.isConnected);
+  if (!visibleCards.length) {
+    return;
+  }
+
+  const overlay = document.createElement("div");
+  overlay.className = "score-fx__overlay";
+
+  const layer = document.createElement("div");
+  layer.className = "score-fx__layer";
+
+  const group = document.createElement("div");
+  group.className = "score-fx__group";
+
+  const pointsLabel = document.createElement("div");
+  pointsLabel.className = "score-fx__points";
+  pointsLabel.textContent = `+${pointsEarned} points`;
+
+  visibleCards.forEach((cardEl) => {
+    const rect = cardEl.getBoundingClientRect();
+    const clone = cardEl.cloneNode(true);
+    clone.classList.add("score-fx__card");
+    clone.style.left = `${rect.left}px`;
+    clone.style.top = `${rect.top}px`;
+    clone.style.width = `${rect.width}px`;
+    clone.style.height = `${rect.height}px`;
+    layer.appendChild(clone);
+  });
+
+  group.appendChild(pointsLabel);
+  layer.appendChild(group);
+  document.body.appendChild(overlay);
+  document.body.appendChild(layer);
+
+  const firstRect = visibleCards[0].getBoundingClientRect();
+  const lastRect = visibleCards[visibleCards.length - 1].getBoundingClientRect();
+  const clusterCenterX = (firstRect.left + lastRect.right) / 2;
+  const clusterCenterY = (firstRect.top + lastRect.bottom) / 2;
+  const viewportCenterX = window.innerWidth / 2;
+  const viewportCenterY = window.innerHeight / 2;
+  const centerDx = viewportCenterX - clusterCenterX;
+  const centerDy = viewportCenterY - clusterCenterY;
+
+  const moveCards = Array.from(layer.querySelectorAll(".score-fx__card")).map((clone) =>
+    animateWithFallback(
+      clone,
+      [
+        { transform: "translate3d(0, 0, 0)", opacity: 1 },
+        { transform: `translate3d(${centerDx}px, ${centerDy}px, 0)`, opacity: 1 },
+      ],
+      { duration: 200, easing: "ease-out", fill: "forwards" }
+    )
+  );
+
+  await Promise.all([
+    animateWithFallback(
+      overlay,
+      [{ opacity: 0 }, { opacity: 1 }],
+      { duration: 120, easing: "ease-out", fill: "forwards" }
+    ),
+    ...moveCards,
+  ]);
+
+  await animateWithFallback(
+    pointsLabel,
+    [
+      { opacity: 0, transform: "translate(-50%, -130%) scale(0.9)" },
+      { opacity: 1, transform: "translate(-50%, -130%) scale(1)" },
+    ],
+    { duration: 180, easing: "ease-out", fill: "forwards" }
+  );
+
+  await Promise.all([
+    animateWithFallback(
+      layer,
+      [
+        { transform: "translate3d(0, 0, 0)", opacity: 1 },
+        { transform: "translate3d(0, -35vh, 0)", opacity: 0 },
+      ],
+      { duration: 300, easing: "ease-in", fill: "forwards" }
+    ),
+    animateWithFallback(
+      overlay,
+      [{ opacity: 1 }, { opacity: 0 }],
+      { duration: 600, easing: "ease-out", fill: "forwards" }
+    ),
+  ]);
+
+  layer.remove();
+  overlay.remove();
+}
+
+function animateScoreCountUp(oldValue, newValue, el) {
+  const duration = 560;
+  const startTime = performance.now();
+  el.classList.add("score-blink");
+
+  return new Promise((resolve) => {
+    function tick(now) {
+      const progress = Math.min(1, (now - startTime) / duration);
+      const eased = 1 - (1 - progress) ** 3;
+      const current = Math.round(oldValue + (newValue - oldValue) * eased);
+      el.textContent = current;
+      if (progress < 1) {
+        requestAnimationFrame(tick);
+        return;
+      }
+      setTimeout(() => {
+        el.classList.remove("score-blink");
+        resolve();
+      }, 500);
+    }
+
+    requestAnimationFrame(tick);
+  });
 }
 
 freeSwapButton.addEventListener("click", () => {
