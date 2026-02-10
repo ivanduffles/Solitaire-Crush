@@ -448,31 +448,6 @@ function handlePointerUp(event) {
     return;
   }
 
-  const isInSequence = state.sequenceSelection.some(
-    (cell) => cell.row === row && cell.col === col
-  );
-  if (state.sequenceValid && state.sequenceSelection.length >= 3 && isInSequence) {
-    const now = performance.now();
-    if (
-      state.lastTap &&
-      state.lastTap.row === row &&
-      state.lastTap.col === col &&
-      now - state.lastTap.time < 400
-    ) {
-      state.lastTap = null;
-      clearDragVisual();
-      state.dragState = null;
-      clearSelectedSequence();
-      return;
-    }
-    state.lastTap = { row, col, time: now };
-    statusEl.textContent = "Sequence selected. Double tap to clear.";
-    renderBoard();
-    clearDragVisual();
-    state.dragState = null;
-    return;
-  }
-
   if (card && card.isBomb) {
     const now = performance.now();
     if (
