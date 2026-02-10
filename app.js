@@ -62,6 +62,7 @@ const state = {
   gameOver: false,
   dragState: null,
   lastTap: null,
+  doubleTapState: null,
   animateMoves: false,
 };
 
@@ -76,6 +77,224 @@ const clearSequenceButton = document.getElementById("clearSequenceButton");
 const freeSwapButton = document.getElementById("freeSwapButton");
 const freeBombButton = document.getElementById("freeBombButton");
 const SWIPE_THRESHOLD_RATIO = 0.35;
+
+function animateElement(element, keyframes, options) {
+  if (element.animate) {
+    const animation = element.animate(keyframes, options);
+    return animation.finished.catch(() => undefined);
+  }
+  return new Promise((resolve) => {
+    const duration = Number(options?.duration ?? 0);
+    const easing = options?.easing ?? "ease";
+    const fill = options?.fill ?? "forwards";
+    const finalFrame = keyframes[keyframes.length - 1] || {};
+    element.style.transition = `all ${duration}ms ${easing}`;
+    requestAnimationFrame(() => {
+      Object.entries(finalFrame).forEach(([prop, value]) => {
+        element.style[prop] = value;
+      });
+    });
+    window.setTimeout(() => {
+      if (fill !== "forwards") {
+        element.style.transition = "";
+      }
+      resolve();
+    }, duration);
+  });
+}
+
+function detectDoubleTap({ row, col }, now = performance.now()) {
+  const thresholdMs = 250;
+  const key = `${row}:${col}`;
+  const previous = state.doubleTapState;
+  if (previous && previous.key === key && now - previous.time <= thresholdMs) {
+    state.doubleTapState = null;
+    return true;
+  }
+  state.doubleTapState = { key, time: now };
+  return false;
+}
+
+function getSequenceCardSnapshots(selection) {
+  return selection
+    .map(({ row, col }) =>
+      boardEl.querySelector(`.card[data-row="${row}"][data-col="${col}"]`)
+    )
+    .filter(Boolean)
+    .map((cardEl) => ({
+      rect: cardEl.getBoundingClientRect(),
+      clone: cardEl.cloneNode(true),
+    }));
+}
+
+async function playScoreAnimation({ cards, pointsEarned }) {
+  if (!cards?.length) {
+    return;
+  }
+  const overlay = document.createElement("div");
+  overlay.className = "score-overlay";
+
+  const flyingGroup = document.createElement("div");
+  flyingGroup.className = "score-fly-group";
+
+  const pointsLabel = document.createElement("div");
+  pointsLabel.className = "score-points-label";
+  pointsLabel.textContent = `+${pointsEarned} points`;
+
+  const snapshots = cards
+    .map((entry) => {
+      if (entry?.rect && entry?.clone) {
+        return entry;
+      }
+      if (entry instanceof Element) {
+        return { rect: entry.getBoundingClientRect(), clone: entry.cloneNode(true) };
+      }
+      return null;
+    })
+    .filter(Boolean);
+
+  if (!snapshots.length) {
+    return;
+  }
+
+  const cardRects = snapshots.map((entry) => entry.rect);
+  const gap = 8;
+  const centerX = window.innerWidth / 2;
+  const centerY = window.innerHeight / 2;
+
+  const totalWidth =
+    cardRects.reduce((sum, rect) => sum + rect.width, 0) +
+    gap * Math.max(0, cardRects.length - 1);
+  let cursorLeft = centerX - totalWidth / 2;
+
+  const clones = cardRects.map((rect, index) => {
+    const clone = snapshots[index].clone;
+    clone.classList.remove(
+      "card--selected",
+      "card--pending",
+      "card--swapper",
+      "card--dragging",
+      "card--animating"
+    );
+    clone.classList.add("score-card-clone");
+    clone.style.left = `${rect.left}px`;
+    clone.style.top = `${rect.top}px`;
+    clone.style.width = `${rect.width}px`;
+    clone.style.height = `${rect.height}px`;
+    const targetLeft = cursorLeft;
+    cursorLeft += rect.width + gap;
+    const targetTop = centerY - rect.height / 2;
+    return {
+      clone,
+      startLeft: rect.left,
+      startTop: rect.top,
+      targetLeft,
+      targetTop,
+    };
+  });
+
+  clones.forEach(({ clone }) => flyingGroup.appendChild(clone));
+  pointsLabel.style.left = `${centerX}px`;
+  pointsLabel.style.top = `${centerY - 48}px`;
+  document.body.append(overlay, flyingGroup, pointsLabel);
+
+  await new Promise((resolve) => requestAnimationFrame(resolve));
+
+  await Promise.all([
+    animateElement(overlay, [{ opacity: 0 }, { opacity: 1 }], {
+      duration: 120,
+      easing: "ease-out",
+      fill: "forwards",
+    }),
+    ...clones.map(({ clone, startLeft, startTop, targetLeft, targetTop }) =>
+      animateElement(
+        clone,
+        [
+          { transform: "translate(0px, 0px)", opacity: 1 },
+          {
+            transform: `translate(${targetLeft - startLeft}px, ${targetTop - startTop}px)`,
+            opacity: 1,
+          },
+        ],
+        { duration: 200, easing: "ease-out", fill: "forwards" }
+      )
+    ),
+  ]);
+
+  await animateElement(
+    pointsLabel,
+    [
+      { opacity: 0, transform: "translate(-50%, -50%) scale(0.9)" },
+      { opacity: 1, transform: "translate(-50%, -50%) scale(1)" },
+    ],
+    { duration: 140, easing: "ease-out", fill: "forwards" }
+  );
+
+  await Promise.all([
+    ...clones.map(({ clone, startLeft, startTop, targetLeft, targetTop }) =>
+      animateElement(
+        clone,
+        [
+          {
+            transform: `translate(${targetLeft - startLeft}px, ${targetTop - startTop}px)`,
+            opacity: 1,
+          },
+          {
+            transform: `translate(${targetLeft - startLeft}px, ${targetTop - startTop - window.innerHeight * 0.6}px)`,
+            opacity: 0,
+          },
+        ],
+        { duration: 320, easing: "ease-in", fill: "forwards" }
+      )
+    ),
+    animateElement(
+      pointsLabel,
+      [
+        { opacity: 1, transform: "translate(-50%, -50%) scale(1)" },
+        { opacity: 0, transform: `translate(-50%, calc(-50% - ${window.innerHeight * 0.6}px)) scale(0.95)` },
+      ],
+      { duration: 320, easing: "ease-in", fill: "forwards" }
+    ),
+    animateElement(overlay, [{ opacity: 1 }, { opacity: 0 }], {
+      duration: 600,
+      easing: "ease-out",
+      fill: "forwards",
+    }),
+  ]);
+
+  overlay.remove();
+  flyingGroup.remove();
+  pointsLabel.remove();
+}
+
+function animateScoreCountUp(oldValue, newValue, el) {
+  if (!el) {
+    return Promise.resolve();
+  }
+  const start = Number(oldValue) || 0;
+  const end = Number(newValue) || 0;
+  const duration = 560;
+  const delta = end - start;
+  const startTime = performance.now();
+  el.classList.add("score-blink");
+
+  return new Promise((resolve) => {
+    function tick(now) {
+      const progress = Math.min((now - startTime) / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      el.textContent = String(Math.round(start + delta * eased));
+      if (progress < 1) {
+        requestAnimationFrame(tick);
+        return;
+      }
+      window.setTimeout(() => {
+        el.classList.remove("score-blink");
+      }, 500);
+      resolve();
+    }
+    requestAnimationFrame(tick);
+  });
+}
 
 function buildDeck() {
   const deck = [];
@@ -279,7 +498,6 @@ function renderBoard() {
       cell.addEventListener("pointerdown", handlePointerDown);
       cell.addEventListener("pointerenter", handlePointerEnter);
       cell.addEventListener("pointerup", handlePointerUp);
-      cell.addEventListener("dblclick", handleCellDoubleClick);
       boardEl.appendChild(cell);
     }
   }
@@ -296,7 +514,7 @@ function handlePointerDown(event) {
   }
   event.preventDefault();
   // Drag swaps only apply in normal mode with a real card.
-  if (state.bombMode || state.swapMode || state.pendingSwap) {
+  if (state.swapMode || state.pendingSwap) {
     return;
   }
   const row = Number(event.currentTarget.dataset.row);
@@ -399,6 +617,7 @@ function handlePointerUp(event) {
   const row = dropTarget.row;
   const col = dropTarget.col;
   const card = state.grid[row][col];
+  const now = performance.now();
 
   if (moved) {
     handleDragSwap(row, col);
@@ -424,25 +643,16 @@ function handlePointerUp(event) {
 
   if (state.bombMode) {
     if (!card) {
-      state.lastTap = null;
+      state.doubleTapState = null;
       state.dragState = null;
       return;
     }
-    if (
-      !state.activeSelection &&
-      !state.swapMode &&
-      !state.swapperActive &&
-      !state.pendingSwap &&
-      card &&
-      (state.bombMode || card.isBomb)
-    ) {
-      state.lastTap = null;
+    if (detectDoubleTap({ row, col }, now)) {
       clearDragVisual();
       state.dragState = null;
       clearSingleCard(row, col, true);
       return;
     }
-    state.lastTap = { row, col, time: now };
     statusEl.textContent = "Bomb ready: double tap to clear.";
     renderBoard();
     clearDragVisual();
@@ -454,20 +664,12 @@ function handlePointerUp(event) {
     (cell) => cell.row === row && cell.col === col
   );
   if (state.sequenceValid && state.sequenceSelection.length >= 3 && isInSequence) {
-    const now = performance.now();
-    if (
-      state.lastTap &&
-      state.lastTap.row === row &&
-      state.lastTap.col === col &&
-      now - state.lastTap.time < 400
-    ) {
-      state.lastTap = null;
+    if (detectDoubleTap({ row, col }, now)) {
       clearDragVisual();
       state.dragState = null;
       clearSelectedSequence();
       return;
     }
-    state.lastTap = { row, col, time: now };
     statusEl.textContent = "Sequence selected. Double tap to clear or tap Clear.";
     renderBoard();
     clearDragVisual();
@@ -764,25 +966,6 @@ function handleSwapModeTap(row, col) {
   renderBoard();
 }
 
-function handleCellDoubleClick(event) {
-  if (state.gameOver) {
-    return;
-  }
-  const row = Number(event.currentTarget.dataset.row);
-  const col = Number(event.currentTarget.dataset.col);
-  const card = state.grid[row][col];
-  if (state.sequenceValid && state.sequenceSelection.length >= 3) {
-    clearSelectedSequence();
-    return;
-  }
-  if (!card) {
-    return;
-  }
-  if (state.bombMode || card.isBomb) {
-    clearSingleCard(row, col, state.bombMode);
-  }
-}
-
 function getSwipeThreshold(cardEl, deltaX, deltaY) {
   const rect = cardEl.getBoundingClientRect();
   const useHorizontal = Math.abs(deltaX) >= Math.abs(deltaY);
@@ -803,6 +986,7 @@ function getCardRects() {
 }
 
 function animateCardMoves(prevRects) {
+  const animations = [];
   const cards = boardEl.querySelectorAll(".card[data-card-id]");
   cards.forEach((cardEl) => {
     const cardId = cardEl.dataset.cardId;
@@ -817,13 +1001,29 @@ function animateCardMoves(prevRects) {
       return;
     }
     cardEl.style.transform = `translate(${deltaX}px, ${deltaY}px)`;
-    requestAnimationFrame(() => {
-      cardEl.classList.add("card--animating");
-      cardEl.style.transform = "";
-      const cleanup = () => {
-        cardEl.classList.remove("card--animating");
-      };
-      cardEl.addEventListener("transitionend", cleanup, { once: true });
+    animations.push(
+      new Promise((resolve) => {
+        requestAnimationFrame(() => {
+          cardEl.classList.add("card--animating");
+          cardEl.style.transform = "";
+          let done = false;
+          const cleanup = () => {
+            if (done) {
+              return;
+            }
+            done = true;
+            cardEl.classList.remove("card--animating");
+            resolve();
+          };
+          cardEl.addEventListener("transitionend", cleanup, { once: true });
+          window.setTimeout(cleanup, 280);
+        });
+      })
+    );
+  });
+  return Promise.all(animations).then(() => {
+    cards.forEach((cardEl) => {
+      cardEl.classList.remove("card--animating");
     });
   });
 }
@@ -981,6 +1181,7 @@ function clearSequenceSelection() {
   state.sequenceSelection = [];
   state.sequenceValid = false;
   state.lastTap = null;
+  state.doubleTapState = null;
   state.sequenceDirection = null;
 }
 
@@ -1001,7 +1202,7 @@ function clearSingleCard(row, col, consumesFreeBomb) {
   renderBoard();
 }
 
-function clearSelectedSequence() {
+async function clearSelectedSequence() {
   if (!state.sequenceValid || state.sequenceSelection.length < 3) {
     statusEl.textContent = "No valid sequence selected.";
     return;
@@ -1014,15 +1215,25 @@ function clearSelectedSequence() {
     return;
   }
 
-  state.sequenceSelection.forEach(({ row, col }) => {
+  const selectedCells = [...state.sequenceSelection];
+  const animationCards = getSequenceCardSnapshots(selectedCells);
+  const prevRects = getCardRects();
+  const oldScore = state.score;
+  const pointsEarned = applyScore(selectedCells.length, validation.usesWildcard);
+  const newScore = state.score;
+
+  selectedCells.forEach(({ row, col }) => {
     state.grid[row][col] = null;
   });
   collapseColumns();
-  applyScore(state.sequenceSelection.length, validation.usesWildcard);
   dropCard();
   clearSequenceSelection();
+  updateHud({ preserveScore: true });
   statusEl.textContent = "Sequence cleared!";
   renderBoard();
+  await animateCardMoves(prevRects);
+  await playScoreAnimation({ cards: animationCards, pointsEarned });
+  await animateScoreCountUp(oldScore, newScore, scoreEl);
 }
 
 function collapseColumns() {
@@ -1045,7 +1256,7 @@ function applyScore(length, usesWildcard) {
   state.score += points;
   state.baseFactor += 1;
   state.chainMultiplier += 1;
-  updateHud();
+  return points;
 }
 
 function init() {
@@ -1062,8 +1273,10 @@ function updateClearButtonVisibility() {
   clearSequenceButton.hidden = !(state.sequenceValid && state.sequenceSelection.length >= 3);
 }
 
-function updateHud() {
-  scoreEl.textContent = state.score;
+function updateHud(options = {}) {
+  if (!options.preserveScore) {
+    scoreEl.textContent = state.score;
+  }
   swapCountEl.textContent = state.freeSwapCount;
   bombCountEl.textContent = state.freeBombCount;
   baseFactorEl.textContent = state.baseFactor;

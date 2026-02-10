@@ -295,7 +295,7 @@ body {
 }
 
 .card--animating {
-  transition: transform 1000ms ease;
+  transition: transform 220ms ease;
   will-change: transform;
 }
 
@@ -325,4 +325,67 @@ body {
 
 .clear-button[hidden] {
   display: none;
+}
+
+/* Score points animation */
+.score-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.25);
+  opacity: 0;
+  z-index: 999;
+  pointer-events: none;
+}
+
+.score-fly-group {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  pointer-events: none;
+}
+
+.score-card-clone {
+  position: fixed;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  border-radius: 6px;
+  border: 1px solid rgba(0, 0, 0, 0.25);
+  background: #ffffff;
+  overflow: hidden;
+  transform: translate(0, 0);
+  opacity: 1;
+  pointer-events: none;
+}
+
+.score-points-label {
+  position: fixed;
+  z-index: 1001;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%) scale(0.9);
+  opacity: 0;
+  font-size: clamp(32px, 8vmin, 56px);
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: #fef08a;
+  text-shadow: 0 8px 18px rgba(15, 23, 42, 0.65);
+  pointer-events: none;
+}
+
+.score-blink {
+  animation: scoreBlinkPulse 180ms ease-in-out 3;
+}
+
+@keyframes scoreBlinkPulse {
+  0%,
+  100% {
+    opacity: 1;
+    text-shadow: 0 1px 2px rgba(15, 23, 42, 0.5);
+  }
+  50% {
+    opacity: 0.75;
+    text-shadow: 0 0 10px rgba(250, 204, 21, 0.85);
+  }
 }
