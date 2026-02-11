@@ -42,6 +42,8 @@ const JOKER_HAT_SVG = `
   </svg>
 `;
 
+const DEBUG_CARD_ANIM = window.__DEBUG_CARD_ANIM === true;
+
 const state = {
   grid: [],
   deck: [],
@@ -992,6 +994,20 @@ function animateCardMoves(prevRects) {
   const animations = [];
   const cards = boardEl.querySelectorAll(".card[data-card-id]");
   const boardRect = boardEl.getBoundingClientRect();
+  const newCards = [];
+
+  cards.forEach((cardEl) => {
+    const cardId = cardEl.dataset.cardId;
+    if (!prevRects[cardId]) {
+      newCards.push(cardEl);
+    }
+  });
+
+  if (DEBUG_CARD_ANIM) {
+    console.info("[card-anim] cards after render:", cards.length);
+    console.info("[card-anim] new cards detected:", newCards.length);
+  }
+
   cards.forEach((cardEl) => {
     const cardId = cardEl.dataset.cardId;
     const prevRect = prevRects[cardId];
@@ -1016,6 +1032,21 @@ function animateCardMoves(prevRects) {
       transitionDelayMs = Math.max(0, Number(cardEl.dataset.row)) * 20;
       timeoutMs = 320 + transitionDelayMs + 120;
       cardEl.style.transitionDelay = `${transitionDelayMs}ms`;
+
+      if (DEBUG_CARD_ANIM && newCards[0] === cardEl) {
+        console.info("[card-anim] sample new card", {
+          cardId,
+          nextRect: {
+            top: nextRect.top,
+            left: nextRect.left,
+            width: nextRect.width,
+            height: nextRect.height,
+          },
+          startTop,
+          deltaY,
+          appliedTransform: `translate(0px, ${deltaY}px)`,
+        });
+      }
     }
 
     if (deltaX === 0 && deltaY === 0) {
@@ -1029,20 +1060,34 @@ function animateCardMoves(prevRects) {
     animations.push(
       new Promise((resolve) => {
         requestAnimationFrame(() => {
+          if (DEBUG_CARD_ANIM) {
+            console.info("[card-anim] raf-start", { cardId, animationClass, deltaX, deltaY });
+          }
           cardEl.classList.add(animationClass);
-          cardEl.style.transform = "";
+          requestAnimationFrame(() => {
+            if (DEBUG_CARD_ANIM) {
+              console.info("[card-anim] raf-apply", { cardId, animationClass });
+            }
+            cardEl.style.transform = "";
+          });
+
           let done = false;
-          const cleanup = () => {
+          const cleanup = (source) => {
             if (done) {
               return;
             }
             done = true;
+            if (DEBUG_CARD_ANIM) {
+              console.info("[card-anim] cleanup", { cardId, source, timeoutMs });
+            }
             cardEl.classList.remove("card--animating", "card--dropping");
             cardEl.style.transitionDelay = "";
             resolve();
           };
-          cardEl.addEventListener("transitionend", cleanup, { once: true });
-          window.setTimeout(cleanup, timeoutMs);
+          cardEl.addEventListener("transitionend", () => cleanup("transitionend"), {
+            once: true,
+          });
+          window.setTimeout(() => cleanup("timeout"), timeoutMs);
         });
       })
     );
