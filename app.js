@@ -1308,7 +1308,10 @@ function validateSequence(selection) {
     return { valid: false, usesWildcard: false };
   }
   const nonWildcards = cards.filter((card) => !isWildcardCard(card));
-  if (nonWildcards.length < 2) {
+  // Bug fix: we only need one non-wild anchor card to evaluate expected ranks.
+  // Requiring two rejects valid runs such as 2♣, 2♠, A♠ where one 2 is consumed
+  // as wildcard and the other 2 + Ace provide concrete rank matches.
+  if (nonWildcards.length < 1) {
     return { valid: false, usesWildcard: false };
   }
   const baseSuit = nonWildcards[0].suit;
@@ -1319,6 +1322,7 @@ function validateSequence(selection) {
   const attempts = [
     { direction: 1, aceValue: 1 },
     { direction: 1, aceValue: 14 },
+    { direction: -1, aceValue: 1 },
     { direction: -1, aceValue: 14 },
   ];
 
@@ -1476,6 +1480,7 @@ function runSequenceValidationDebugChecks() {
     const attempts = [
       { direction: 1, aceValue: 1, label: "asc/A-low" },
       { direction: 1, aceValue: 14, label: "asc/A-high" },
+      { direction: -1, aceValue: 1, label: "desc/A-low" },
       { direction: -1, aceValue: 14, label: "desc/A-high" },
     ];
     const results = attempts.map((attempt) => ({
@@ -1495,6 +1500,7 @@ function runSequenceValidationDebugChecks() {
   inspectAttempts("wildcard present but not consumed", [card("A"), card("2"), card("3")]);
   inspectAttempts("two cannot represent literal two", [card("A"), card("2"), card("4")]);
   inspectAttempts("ace low/high comparison", [card("Q"), card("K"), card("A")]);
+  inspectAttempts("reported valid case", [card("2", "♣"), card("2", "♠"), card("A", "♠")]);
 }
 
 function dropCard() {
