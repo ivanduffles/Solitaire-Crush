@@ -187,14 +187,14 @@ async function playScoreAnimation({
     textLines.push({ className: "score-line score-points-label__combo", text: `${chainForDisplay}x COMBO` });
     textLines.push({ className: "score-line score-points-label__raw", text: `+${rawPoints} points` });
   }
-  textLines.push({ className: "score-line score-points-label__final", text: `→ +${finalPoints} points!` });
+  textLines.push({ className: "score-line score-points-label__final", text: `+${finalPoints} points!` });
 
   textLines.forEach(({ className, text }) => {
     const line = document.createElement("div");
     line.className = className;
     line.textContent = text;
     line.style.opacity = "0";
-    line.style.transform = "translateY(-8px)";
+    line.style.transform = "translateY(8px)";
     textStack.append(line);
   });
 
@@ -279,7 +279,7 @@ async function playScoreAnimation({
           animateElement(
             lineEl,
             [
-              { opacity: 0, transform: "translateY(-8px)" },
+              { opacity: 0, transform: "translateY(8px)" },
               { opacity: 1, transform: "translateY(0px)" },
             ],
             { duration: 180, easing: "ease-out", fill: "forwards" }
