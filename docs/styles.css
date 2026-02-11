@@ -1,3 +1,5 @@
+@import url("https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap");
+
 :root {
   --card-black: #010e1e;
   --card-red: #f70909;
@@ -44,36 +46,59 @@ body {
 
 .hud {
   flex: 0 0 auto;
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto;
   align-items: center;
-  justify-content: center;
-  gap: 12px;
-  flex-wrap: wrap;
+  column-gap: clamp(8px, 2.5vw, 16px);
+}
+
+.topbar-left {
+  justify-self: start;
+  min-width: 0;
+}
+
+
+.topbar-right {
+  justify-self: end;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: clamp(6px, 1.8vw, 12px);
 }
 
 .hud__score {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+  display: inline-flex;
+  flex-direction: row;
+  align-items: flex-end;
+  gap: clamp(6px, 1.8vw, 12px);
+  text-align: left;
+  white-space: nowrap;
 }
 
 .hud__score span:not(.hud__label) {
   color: #f8fafc;
-  font-weight: 600;
-  text-shadow: 0 1px 2px rgba(15, 23, 42, 0.5);
+  font-weight: 800;
+  font-size: clamp(28px, 8.2vw, 44px);
+  line-height: 0.9;
+  text-shadow: 0 2px 4px rgba(15, 23, 42, 0.55);
 }
 
 .hud__label {
-  font-size: 12px;
+  font-family: "Bebas Neue", "Inter", system-ui, sans-serif;
+  font-size: clamp(10px, 2.4vw, 12px);
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.14em;
   color: #cbd5f5;
+  line-height: 1;
+  transform: translateY(-3px);
   text-shadow: 0 1px 2px rgba(15, 23, 42, 0.45);
 }
 
 .hud__counts {
   display: flex;
-  gap: 8px;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: clamp(4px, 1.3vw, 8px);
 }
 
 .hud__button {
@@ -87,6 +112,49 @@ body {
   cursor: pointer;
 }
 
+.hud__button--powerup {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  gap: clamp(6px, 1.6vw, 10px);
+  background: transparent;
+  border-color: rgba(148, 163, 184, 0.8);
+  padding: 8px clamp(8px, 2.5vw, 14px);
+}
+
+.hud__icon {
+  width: clamp(24px, 6.5vw, 34px);
+  height: clamp(24px, 6.5vw, 34px);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+
+.hud__icon svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.hud__icon--swap {
+  color: #256de9;
+}
+
+.hud__icon--bomb {
+  color: #8E0002;
+}
+
+.hud__button-amount {
+  font-weight: 800;
+  font-size: clamp(16px, 4.4vw, 20px);
+  line-height: 1;
+  color: #f8fafc;
+  min-width: 2ch;
+  text-align: center;
+}
+
 .hud__button[aria-pressed="true"] {
   background: #2563eb;
   border-color: #1d4ed8;
@@ -97,6 +165,10 @@ body {
   padding-inline: 0;
   font-size: 22px;
   line-height: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  box-shadow: none;
 }
 
 .board-viewport {
@@ -253,20 +325,32 @@ body {
   position: absolute;
   top: clamp(2px, 0.7vmin, 6px);
   right: clamp(2px, 0.7vmin, 6px);
-  min-width: 16px;
+  width: 16px;
   height: 16px;
-  padding: 0 4px;
+  padding: 0;
   border-radius: 999px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: clamp(9px, 1.7vmin, 11px);
-  font-weight: 700;
+  display: grid;
+  place-items: center;
   line-height: 1;
-  color: #f8fafc;
-  background: rgba(15, 23, 42, 0.85);
-  border: 1px solid rgba(148, 163, 184, 0.55);
+  color: #1f2937;
+  background: transparent;
+  border: none;
   pointer-events: none;
+}
+
+.badge svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  filter: drop-shadow(0 1px 1px rgba(255, 255, 255, 0.35));
+}
+
+.badge--bomb {
+  color: #8E0002;
+}
+
+.badge--swapper {
+  color: #256de9;
 }
 
 

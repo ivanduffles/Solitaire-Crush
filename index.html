@@ -9,28 +9,35 @@
   <body>
     <main class="app">
       <header class="hud">
-        <div class="hud__score">
-          <span class="hud__label">Score</span>
-          <span id="scoreValue">0</span>
+        <div class="topbar-left">
+          <div class="hud__score">
+            <span class="hud__label">Score</span>
+            <span id="scoreValue">0</span>
+          </div>
         </div>
-        <div class="hud__counts">
-          <button class="hud__button" id="freeSwapButton" type="button">
-            Swap (<span id="freeSwapCount">3</span>)
-          </button>
-          <button class="hud__button" id="freeBombButton" type="button">
-            Bomb (<span id="freeBombCount">3</span>)
+        <div class="topbar-right">
+          <div class="hud__counts">
+            <button class="hud__button hud__button--powerup" id="freeSwapButton" type="button" aria-label="Use free swap">
+              <span class="hud__button-amount" aria-label="Free swaps remaining"><span id="freeSwapCount">3</span></span>
+              <span class="hud__icon hud__icon--swap" aria-hidden="true"></span>
+            </button>
+            <button class="hud__button hud__button--powerup" id="freeBombButton" type="button" aria-label="Use free bomb">
+              <span class="hud__button-amount" aria-label="Free bombs remaining"><span id="freeBombCount">3</span></span>
+              <span class="hud__icon hud__icon--bomb" aria-hidden="true"></span>
+            </button>
+          </div>
+        
+          <button
+            class="hud__button hud__menu-button"
+            id="menuBtn"
+            type="button"
+            aria-haspopup="dialog"
+            aria-controls="gameMenuModal"
+            aria-label="Open game menu"
+          >
+            ☰
           </button>
         </div>
-        <button
-          class="hud__button hud__menu-button"
-          id="menuBtn"
-          type="button"
-          aria-haspopup="dialog"
-          aria-controls="gameMenuModal"
-          aria-label="Open game menu"
-        >
-          ☰
-        </button>
       </header>
 
       <section class="board-viewport" aria-label="Board viewport">

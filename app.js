@@ -28,6 +28,27 @@ const SUIT_SVGS = {
   `,
 };
 
+const SWAP_ICON_SVG = `
+  <svg viewBox="0 0 100 100" aria-hidden="true" focusable="false">
+    <path d="M78.9102 44.3131L79.0127 44.5778C81.6134 45.3518 83.5008 47.751 83.501 50.6139V50.6149L83.498 60.4059C83.4976 69.298 76.2148 76.5807 67.3223 76.5807H37.7891L42.418 81.1676L42.4482 81.1979L42.4775 81.2291C44.7815 83.6748 44.8691 87.6638 42.3438 90.11L42.3447 90.111C42.3381 90.1177 42.3309 90.1238 42.3242 90.1305C42.3133 90.141 42.303 90.1523 42.292 90.1627L42.291 90.1617C41.0083 91.4193 39.3497 91.944 37.873 91.944C36.2583 91.9439 34.6757 91.3853 33.4053 90.1149L33.3984 90.1071L33.3916 90.1002L18.2793 74.736C15.7238 72.2477 15.9646 68.2264 18.2939 65.8971L33.4053 50.7848L33.4072 50.7828C35.8254 48.3698 39.604 48.2919 42.1064 50.5582L42.3447 50.7848L42.3467 50.7867C44.8372 53.2828 44.8398 57.2279 42.3447 59.7233L38.084 63.983L67.3223 63.986C69.3193 63.9858 70.9002 62.4034 70.9004 60.4078V50.6129C70.9005 47.1186 73.713 44.3131 77.2012 44.3131H78.9102ZM29.0537 49.2614C29.0536 52.7557 26.2411 55.5612 22.7529 55.5612C19.2587 55.561 16.4532 52.7494 16.4531 49.2614V39.5524C16.4531 30.6603 23.7325 23.3766 32.6289 23.3766H62.1172L57.6045 18.8639C55.1137 16.3678 55.1111 12.4228 57.6064 9.92737L57.6084 9.92542C60.0266 7.51241 63.8042 7.43451 66.3066 9.70081L66.5449 9.92737L81.7393 25.1246L81.96 25.3571C84.1713 27.806 84.0371 31.5504 81.7871 33.9283L81.7539 33.9635L66.6416 49.3278L66.6357 49.3326L66.6309 49.3385C65.36 50.6147 63.7707 51.1715 62.1592 51.1715C60.5444 51.1715 58.9619 50.6128 57.6914 49.3424C55.2032 46.8543 55.2008 42.9445 57.5586 40.4528L57.5977 40.4117L61.9932 35.9733H32.6289C30.6316 35.9733 29.0498 37.5565 29.0498 39.5524L29.0537 49.2604V49.2614Z" fill="currentColor" stroke="white" stroke-width="5"/>
+  </svg>
+`;
+
+const BOMB_ICON_SVG = `
+  <svg viewBox="0 0 100 100" aria-hidden="true" focusable="false">
+    <g clip-path="url(#clip0_308_16903)">
+      <path d="M59.305 13.2151C58.7277 9.93868 60.7294 6.74542 63.9322 5.83911L64.2562 5.75578L64.5843 5.68928C67.9705 5.09273 71.2677 7.2517 72.0441 10.6414C72.7281 13.6283 73.3853 16.9268 73.1842 20.3777L73.1847 20.3786C73.0601 22.5161 72.6145 24.5905 71.8068 26.66C74.5286 29.0034 76.799 31.8902 77.8578 35.3281C78.3543 36.9404 78.0853 38.5283 77.6891 39.7702C77.2843 41.0388 76.6428 42.2695 76.0056 43.3426C75.3622 44.426 74.6458 45.476 74.0477 46.3538C73.8452 46.651 73.663 46.923 73.4973 47.17C75.8775 52.1499 76.93 57.6188 76.7113 63.0961C76.7109 63.1063 76.7106 63.1171 76.7101 63.1273C76.3372 70.5582 73.4208 77.552 68.6571 83.1498C68.6502 83.1578 68.6432 83.1662 68.6362 83.1742C63.5886 88.9799 56.7041 92.7237 49.2337 94.0797C49.2224 94.0818 49.2112 94.0838 49.1999 94.0857C41.6197 95.3705 33.9132 93.9017 27.2805 90.2041C27.2713 90.199 27.2624 90.1934 27.2533 90.1882C20.5798 86.3731 15.552 80.3505 12.7709 73.2837L12.7595 73.2542C10.0331 66.103 9.87136 58.2274 12.3001 50.9702C14.729 43.7127 19.5993 37.5207 26.0813 33.4512C30.4762 30.6921 35.4278 29.0261 40.5264 28.5393C40.6582 28.259 40.8051 27.9503 40.964 27.6078C41.4193 26.6267 41.9676 25.4557 42.5959 24.3348C43.2172 23.2266 43.9919 22.029 44.9544 21.037C45.9143 20.0477 47.2532 19.0659 49.0026 18.7967L49.4516 18.7326C53.056 18.2572 56.541 18.7531 60.1688 20.0472C60.1847 19.9045 60.1988 19.7629 60.2071 19.6214C60.2917 18.1681 60.0344 16.4384 59.3715 13.5432L59.305 13.2151ZM39.9604 41.7347C37.505 42.1964 35.139 43.1144 32.993 44.4617C29.0585 46.9319 26.102 50.6901 24.6275 55.0954C23.1532 59.5006 23.2523 64.282 24.9075 68.6233C26.5628 72.9643 29.6716 76.5974 33.7044 78.9029C37.7377 81.2085 42.4468 82.0446 47.0274 81.2682C51.6074 80.4917 55.7767 78.1509 58.8248 74.6452C61.8729 71.1394 63.6111 66.6834 63.7432 62.0391C63.8118 59.6265 63.4432 57.2401 62.6751 54.9879C62.3658 54.6299 61.5664 53.787 59.8806 52.4426C56.1836 51.3765 52.9695 50.1138 50.0272 48.4033C47.0847 46.6927 44.6123 44.6495 42.2652 42.215C40.8422 41.7685 40.131 41.7351 39.9604 41.7347Z" fill="#8E0002" stroke="white" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M33.2092 50.2679C29.7059 52.6728 27.911 57.6 29.1328 62.6915" stroke="#8E0002" stroke-width="6" stroke-linecap="round"/>
+      <path d="M33.2109 71.5433C33.623 72.0718 34.4791 73.2474 35.0956 73.7021" stroke="#8E0002" stroke-width="6" stroke-linecap="round"/>
+    </g>
+    <defs>
+      <clipPath id="clip0_308_16903">
+        <rect width="100" height="100" fill="white"/>
+      </clipPath>
+    </defs>
+  </svg>
+`;
+
 const JOKER_HAT_SVG = `
   <svg viewBox="0 0 110 110" aria-hidden="true">
     <circle cx="89.3281" cy="60.0117" r="6" fill="white" stroke="black"/>
@@ -78,6 +99,8 @@ const statusEl = document.getElementById("statusMessage");
 const clearSequenceButton = document.getElementById("clearSequenceButton");
 const freeSwapButton = document.getElementById("freeSwapButton");
 const freeBombButton = document.getElementById("freeBombButton");
+const freeSwapButtonIconEl = freeSwapButton?.querySelector(".hud__icon");
+const freeBombButtonIconEl = freeBombButton?.querySelector(".hud__icon");
 const menuBtn = document.getElementById("menuBtn");
 const gameMenuModal = document.getElementById("gameMenuModal");
 const closeMenuBtn = document.getElementById("closeMenuBtn");
@@ -715,10 +738,16 @@ function renderBoard() {
           cell.appendChild(buildStandardCardContent(card));
         }
         if (card.isBomb) {
-          cell.insertAdjacentHTML("beforeend", `<span class="badge">B</span>`);
+          cell.insertAdjacentHTML(
+            "beforeend",
+            `<span class="badge badge--bomb" aria-hidden="true">${BOMB_ICON_SVG}</span>`
+          );
         }
         if (card.isSwapper) {
-          cell.insertAdjacentHTML("beforeend", `<span class="badge">S</span>`);
+          cell.insertAdjacentHTML(
+            "beforeend",
+            `<span class="badge badge--swapper" aria-hidden="true">${SWAP_ICON_SVG}</span>`
+          );
         }
       }
 
@@ -1844,6 +1873,15 @@ function init() {
   renderBoard();
 }
 
+function renderPowerupButtonIcons() {
+  if (freeSwapButtonIconEl) {
+    freeSwapButtonIconEl.innerHTML = SWAP_ICON_SVG;
+  }
+  if (freeBombButtonIconEl) {
+    freeBombButtonIconEl.innerHTML = BOMB_ICON_SVG;
+  }
+}
+
 function updateClearButtonVisibility() {
   if (!clearSequenceButton) {
     return;
@@ -1926,6 +1964,7 @@ boardEl.addEventListener("pointermove", handlePointerMove);
 boardEl.addEventListener("pointercancel", handlePointerCancel);
 boardEl.addEventListener("pointerleave", handlePointerCancel);
 
+renderPowerupButtonIcons();
 if (window.__DEBUG_SEQUENCE_VALIDATION) {
   runSequenceValidationDebugChecks();
 }
