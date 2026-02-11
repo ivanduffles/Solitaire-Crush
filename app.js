@@ -135,6 +135,7 @@ async function playScoreAnimation({
   basePerCard,
   sequenceCount,
   comboMultiplier,
+  chainMultiplier,
   rawPoints,
   finalPoints,
 }) {
@@ -150,10 +151,12 @@ async function playScoreAnimation({
   const pointsLabel = document.createElement("div");
   pointsLabel.className = "score-points-label";
 
-  if ((comboMultiplier ?? 1) > 1) {
+  const chainForDisplay = Math.max(1, Number(chainMultiplier ?? comboMultiplier ?? 1));
+
+  if (chainForDisplay > 1) {
     const comboLine = document.createElement("div");
     comboLine.className = "score-points-label__combo";
-    comboLine.textContent = `${comboMultiplier}x COMBO`;
+    comboLine.textContent = `${chainForDisplay}x COMBO`;
 
     const rawLine = document.createElement("div");
     rawLine.className = "score-points-label__raw";
@@ -1293,6 +1296,7 @@ function applyScore(length, usesWildcard) {
     basePerCard,
     sequenceCount: length,
     comboMultiplier,
+    chainMultiplier: comboMultiplier,
     rawPoints,
     finalPoints,
   };
