@@ -85,7 +85,8 @@ const menuOverlay = document.getElementById("menuOverlay");
 let scoreAnimationActive = false;
 const SWIPE_THRESHOLD_RATIO = 0.35;
 const LONG_PRESS_MS = 210;
-const LONG_PRESS_MOVE_TOLERANCE = 10;
+const LONG_PRESS_MOVE_TOLERANCE_TOUCH = 10;
+const LONG_PRESS_MOVE_TOLERANCE_MOUSE = 4;
 
 function animateElement(element, keyframes, options) {
   if (element.animate) {
@@ -604,11 +605,7 @@ function handlePointerDown(event) {
   const canLongPressSelect =
     !!card &&
     !(state.bombMode || state.swapMode || state.swapperActive || state.pendingSwap);
-  const isMouseDragSelect = event.pointerType === "mouse" && event.button === 0;
-  if (canLongPressSelect && isMouseDragSelect) {
-    state.dragState.longPressCancelled = true;
-    startDragSelection();
-  } else if (canLongPressSelect) {
+  if (canLongPressSelect) {
     state.longPressTimer = window.setTimeout(() => {
       if (!state.dragState || state.dragState.longPressCancelled || scoreAnimationActive || state.gameOver) {
         return;
@@ -650,7 +647,9 @@ function handlePointerMove(event) {
   const deltaY = event.clientY - startY;
   if (!state.dragSelecting && !state.dragState.longPressCancelled) {
     const movedDistance = Math.hypot(deltaX, deltaY);
-    if (movedDistance > LONG_PRESS_MOVE_TOLERANCE) {
+    const longPressMoveTolerance =
+      event.pointerType === "mouse" ? LONG_PRESS_MOVE_TOLERANCE_MOUSE : LONG_PRESS_MOVE_TOLERANCE_TOUCH;
+    if (movedDistance > longPressMoveTolerance) {
       state.dragState.longPressCancelled = true;
       clearLongPressTimer();
     }
