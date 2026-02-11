@@ -9,7 +9,7 @@
   --board-pad: clamp(4px, 1.1vmin, 12px);
   --card-content-inset: clamp(2px, 0.8vmin, 8px);
   --card-suit-inset: clamp(3px, 0.7vmin, 6px);
-  --card-rank-size: clamp(16px, 2.8vw, 30px);
+  --card-rank-size: clamp(18px, 3.6vw, 32px);
   --card-selected-outline: 3px;
   --card-selected-outline-offset: 2px;
   --card-selected-scale: 1.02;
@@ -509,8 +509,8 @@ body {
 @media (max-width: 380px) {
   :root {
     --card-content-inset: clamp(2px, 0.7vmin, 6px);
-    --card-suit-inset: clamp(2px, 0.6vmin, 4px);
-    --card-rank-size: clamp(14px, 4.8vw, 22px);
+    --card-suit-inset: clamp(2px, 0.7vmin, 4px);
+    --card-rank-size: clamp(16px, 5.6vw, 24px);
     --card-selected-outline: 4px;
     --card-selected-glow: 0 0 0 1px rgba(7, 10, 18, 0.45), 0 0 0 8px rgba(250, 204, 21, 0.45),
       0 12px 20px rgba(15, 23, 42, 0.45);
