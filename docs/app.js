@@ -99,19 +99,22 @@ function animateElement(element, keyframes, options) {
     const duration = Number(options?.duration ?? 0);
     const easing = options?.easing ?? "ease";
     const fill = options?.fill ?? "forwards";
+    const delay = Number(options?.delay ?? 0);
     const finalFrame = keyframes[keyframes.length - 1] || {};
-    element.style.transition = `all ${duration}ms ${easing}`;
+    element.style.transition = `all ${duration}ms ${easing} ${delay}ms`;
     requestAnimationFrame(() => {
-      Object.entries(finalFrame).forEach(([prop, value]) => {
-        element.style[prop] = value;
-      });
+      window.setTimeout(() => {
+        Object.entries(finalFrame).forEach(([prop, value]) => {
+          element.style[prop] = value;
+        });
+      }, Math.max(0, delay));
     });
     window.setTimeout(() => {
       if (fill !== "forwards") {
         element.style.transition = "";
       }
       resolve();
-    }, duration);
+    }, duration + Math.max(0, delay));
   });
 }
 
@@ -138,7 +141,6 @@ function createParticleCanvasExplosion(x, y) {
       vy: Math.sin(angle) * speed,
       radius: 1 + Math.random() * 2.5,
       life: 250 + Math.random() * 250,
-      ttl: 250 + Math.random() * 250,
     };
   });
 
