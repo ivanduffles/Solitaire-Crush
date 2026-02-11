@@ -13,16 +13,6 @@
           <span class="hud__label">Score</span>
           <span id="scoreValue">0</span>
         </div>
-        <div class="hud__meta">
-          <div>
-            <span class="hud__label">Base</span>
-            <span id="baseFactorValue">10</span>
-          </div>
-          <div>
-            <span class="hud__label">Chain</span>
-            <span id="chainValue">1</span>
-          </div>
-        </div>
         <div class="hud__counts">
           <button class="hud__button" id="freeSwapButton" type="button">
             Swap (<span id="freeSwapCount">3</span>)
@@ -31,6 +21,16 @@
             Bomb (<span id="freeBombCount">3</span>)
           </button>
         </div>
+        <button
+          class="hud__button hud__menu-button"
+          id="menuBtn"
+          type="button"
+          aria-haspopup="dialog"
+          aria-controls="gameMenuModal"
+          aria-label="Open game menu"
+        >
+          ☰
+        </button>
       </header>
 
       <section class="board-viewport" aria-label="Board viewport">
@@ -42,6 +42,60 @@
         <button class="clear-button" id="clearSequenceButton" type="button" hidden>Clear</button>
       </footer>
     </main>
+
+    <div class="menu-modal" id="gameMenuModal" hidden>
+      <button
+        type="button"
+        class="menu-modal__overlay"
+        id="menuOverlay"
+        aria-label="Close menu"
+      ></button>
+      <section
+        class="menu-modal__panel"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="menuTitle"
+      >
+        <header class="menu-modal__header">
+          <h2 id="menuTitle">Game Menu</h2>
+          <button type="button" class="hud__button" id="closeMenuBtn" aria-label="Close menu">
+            Close
+          </button>
+        </header>
+        <div class="menu-modal__content">
+          <section>
+            <h3>How to play</h3>
+            <ul>
+              <li>Swap orthogonally adjacent cards to make better sequence opportunities.</li>
+              <li>
+                Build a straight line (horizontal or vertical) of 3 to 7 cards in ascending or
+                descending rank order.
+              </li>
+              <li>
+                A valid sequence must stay in one suit, with at most one wildcard (Joker or an
+                extra 2 acting as wildcard).
+              </li>
+              <li>
+                When your selection is valid, double tap a selected card (or use the Clear button)
+                to clear and score.
+              </li>
+            </ul>
+          </section>
+          <section>
+            <h3>Scoring</h3>
+            <p>
+              Sequence score = sum of cleared card base values × combo multiplier (clean 7-card
+              sequence doubles the result).
+            </p>
+            <p><strong>Any Card = 10 points</strong></p>
+            <p>
+              Combo chain: clearing again without making a move increases multiplier (x1, x2, x3…)
+              and any move/swap/bomb action resets combo back to x1.
+            </p>
+          </section>
+        </div>
+      </section>
+    </div>
 
     <script src="app.js"></script>
   </body>

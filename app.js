@@ -70,12 +70,16 @@ const boardEl = document.getElementById("board");
 const scoreEl = document.getElementById("scoreValue");
 const swapCountEl = document.getElementById("freeSwapCount");
 const bombCountEl = document.getElementById("freeBombCount");
-const baseFactorEl = document.getElementById("baseFactorValue");
-const chainValueEl = document.getElementById("chainValue");
 const statusEl = document.getElementById("statusMessage");
 const clearSequenceButton = document.getElementById("clearSequenceButton");
 const freeSwapButton = document.getElementById("freeSwapButton");
 const freeBombButton = document.getElementById("freeBombButton");
+const menuBtn = document.getElementById("menuBtn");
+const gameMenuModal = document.getElementById("gameMenuModal");
+const closeMenuBtn = document.getElementById("closeMenuBtn");
+const menuOverlay = document.getElementById("menuOverlay");
+
+let scoreAnimationActive = false;
 const SWIPE_THRESHOLD_RATIO = 0.35;
 
 function animateElement(element, keyframes, options) {
@@ -127,19 +131,18 @@ function getSequenceCardSnapshots(selection) {
     }));
 }
 
-async function playScoreAnimation({ cards, pointsEarned }) {
-  if (!cards?.length) {
+async function playScoreAnimation({
+  cards,
+  basePerCard,
+  sequenceCount,
+  comboMultiplier,
+  chainMultiplier,
+  rawPoints,
+  finalPoints,
+}) {
+  if (!cards?.length || scoreAnimationActive) {
     return;
   }
-  const overlay = document.createElement("div");
-  overlay.className = "score-overlay";
-
-  const flyingGroup = document.createElement("div");
-  flyingGroup.className = "score-fly-group";
-
-  const pointsLabel = document.createElement("div");
-  pointsLabel.className = "score-points-label";
-  pointsLabel.textContent = `+${pointsEarned} points`;
 
   const snapshots = cards
     .map((entry) => {
@@ -157,18 +160,58 @@ async function playScoreAnimation({ cards, pointsEarned }) {
     return;
   }
 
+  const wait = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms));
+  const chainForDisplay = Math.max(1, Number(chainMultiplier ?? comboMultiplier ?? 1));
+
+  const overlay = document.createElement("div");
+  overlay.className = "score-overlay";
+
+  const stage = document.createElement("div");
+  stage.className = "score-stage";
+
+  const stageContent = document.createElement("div");
+  stageContent.className = "score-stage__content";
+
+  const textStack = document.createElement("div");
+  textStack.className = "score-text-stack";
+
+  const cardsRow = document.createElement("div");
+  cardsRow.className = "score-cards-row";
+
+  stageContent.append(textStack, cardsRow);
+  stage.append(stageContent);
+
+  const textLines = [];
+  if (chainForDisplay > 1) {
+    textLines.push({ className: "score-line score-points-label__combo", text: `${chainForDisplay}x COMBO` });
+    textLines.push({ className: "score-line score-points-label__raw", text: `+${rawPoints} points` });
+  }
+  textLines.push({ className: "score-line score-points-label__final", text: `+${finalPoints} points!` });
+
+  textLines.forEach(({ className, text }) => {
+    const line = document.createElement("div");
+    line.className = className;
+    line.textContent = text;
+    line.style.opacity = "0";
+    line.style.transform = "translateY(8px)";
+    textStack.append(line);
+  });
+
   const cardRects = snapshots.map((entry) => entry.rect);
-  const gap = 8;
-  const centerX = window.innerWidth / 2;
-  const centerY = window.innerHeight / 2;
+  const targetWidth = Math.max(...cardRects.map((rect) => rect.width));
+  const targetHeight = Math.max(...cardRects.map((rect) => rect.height));
 
-  const totalWidth =
-    cardRects.reduce((sum, rect) => sum + rect.width, 0) +
-    gap * Math.max(0, cardRects.length - 1);
-  let cursorLeft = centerX - totalWidth / 2;
+  const slots = snapshots.map(() => {
+    const slot = document.createElement("div");
+    slot.className = "score-card-slot";
+    slot.style.width = `${targetWidth}px`;
+    slot.style.height = `${targetHeight}px`;
+    cardsRow.append(slot);
+    return slot;
+  });
 
-  const clones = cardRects.map((rect, index) => {
-    const clone = snapshots[index].clone;
+  const clones = snapshots.map((entry) => {
+    const clone = entry.clone;
     clone.classList.remove(
       "card--selected",
       "card--pending",
@@ -177,94 +220,106 @@ async function playScoreAnimation({ cards, pointsEarned }) {
       "card--animating"
     );
     clone.classList.add("score-card-clone");
-    clone.style.left = `${rect.left}px`;
-    clone.style.top = `${rect.top}px`;
-    clone.style.width = `${rect.width}px`;
-    clone.style.height = `${rect.height}px`;
-    const targetLeft = cursorLeft;
-    cursorLeft += rect.width + gap;
-    const targetTop = centerY - rect.height / 2;
+    clone.style.left = `${entry.rect.left}px`;
+    clone.style.top = `${entry.rect.top}px`;
+    clone.style.width = `${entry.rect.width}px`;
+    clone.style.height = `${entry.rect.height}px`;
+    clone.style.transform = "none";
+    stage.append(clone);
     return {
       clone,
-      startLeft: rect.left,
-      startTop: rect.top,
-      targetLeft,
-      targetTop,
+      startLeft: entry.rect.left,
+      startTop: entry.rect.top,
+      targetLeft: entry.rect.left,
+      targetTop: entry.rect.top,
     };
   });
 
-  clones.forEach(({ clone }) => flyingGroup.appendChild(clone));
-  pointsLabel.style.left = `${centerX}px`;
-  pointsLabel.style.top = `${centerY - 48}px`;
-  document.body.append(overlay, flyingGroup, pointsLabel);
+  // Timeline: 300ms cards to stage -> 150ms pause -> text line enters (180ms, 90ms stagger)
+  // -> 300ms hold -> 300ms group exit + 600ms overlay fade.
+  scoreAnimationActive = true;
+  document.body.append(overlay, stage);
 
-  await new Promise((resolve) => requestAnimationFrame(resolve));
+  try {
+    await new Promise((resolve) => requestAnimationFrame(resolve));
 
-  await Promise.all([
-    animateElement(overlay, [{ opacity: 0 }, { opacity: 1 }], {
-      duration: 120,
-      easing: "ease-out",
-      fill: "forwards",
-    }),
-    ...clones.map(({ clone, startLeft, startTop, targetLeft, targetTop }) =>
+    slots.forEach((slot, i) => {
+      const targetRect = slot.getBoundingClientRect();
+      const cloneWidth = Number.parseFloat(clones[i].clone.style.width) || targetRect.width;
+      const cloneHeight = Number.parseFloat(clones[i].clone.style.height) || targetRect.height;
+      clones[i].targetLeft = targetRect.left + (targetRect.width - cloneWidth) / 2;
+      clones[i].targetTop = targetRect.top + (targetRect.height - cloneHeight) / 2;
+    });
+
+    await Promise.all([
+      animateElement(overlay, [{ opacity: 0 }, { opacity: 1 }], {
+        duration: 120,
+        easing: "ease-out",
+        fill: "forwards",
+      }),
+      ...clones.map(({ clone, startLeft, startTop, targetLeft, targetTop }) =>
+        animateElement(
+          clone,
+          [
+            { left: `${startLeft}px`, top: `${startTop}px`, opacity: 1 },
+            { left: `${targetLeft}px`, top: `${targetTop}px`, opacity: 1 },
+          ],
+          { duration: 300, easing: "ease-out", fill: "forwards" }
+        )
+      ),
+    ]);
+
+    await wait(150);
+
+    const lineEls = Array.from(textStack.children);
+    const lineAnimations = lineEls.map((lineEl, index) =>
+      new Promise((resolve) => {
+        window.setTimeout(() => {
+          animateElement(
+            lineEl,
+            [
+              { opacity: 0, transform: "translateY(8px)" },
+              { opacity: 1, transform: "translateY(0px)" },
+            ],
+            { duration: 180, easing: "ease-out", fill: "forwards" }
+          ).then(resolve);
+        }, index * 90);
+      })
+    );
+
+    await Promise.all(lineAnimations);
+    await wait(300);
+
+    await Promise.all([
+      ...clones.map(({ clone }) =>
+        animateElement(
+          clone,
+          [
+            { transform: "translateY(0px)", opacity: 1 },
+            { transform: "translateY(-80px)", opacity: 0 },
+          ],
+          { duration: 300, easing: "ease-in", fill: "forwards" }
+        )
+      ),
       animateElement(
-        clone,
+        textStack,
         [
-          { transform: "translate(0px, 0px)", opacity: 1 },
-          {
-            transform: `translate(${targetLeft - startLeft}px, ${targetTop - startTop}px)`,
-            opacity: 1,
-          },
+          { transform: "translateY(0px)", opacity: 1 },
+          { transform: "translateY(-80px)", opacity: 0 },
         ],
-        { duration: 200, easing: "ease-out", fill: "forwards" }
-      )
-    ),
-  ]);
-
-  await animateElement(
-    pointsLabel,
-    [
-      { opacity: 0, transform: "translate(-50%, -50%) scale(0.9)" },
-      { opacity: 1, transform: "translate(-50%, -50%) scale(1)" },
-    ],
-    { duration: 140, easing: "ease-out", fill: "forwards" }
-  );
-
-  await Promise.all([
-    ...clones.map(({ clone, startLeft, startTop, targetLeft, targetTop }) =>
-      animateElement(
-        clone,
-        [
-          {
-            transform: `translate(${targetLeft - startLeft}px, ${targetTop - startTop}px)`,
-            opacity: 1,
-          },
-          {
-            transform: `translate(${targetLeft - startLeft}px, ${targetTop - startTop - window.innerHeight * 0.6}px)`,
-            opacity: 0,
-          },
-        ],
-        { duration: 320, easing: "ease-in", fill: "forwards" }
-      )
-    ),
-    animateElement(
-      pointsLabel,
-      [
-        { opacity: 1, transform: "translate(-50%, -50%) scale(1)" },
-        { opacity: 0, transform: `translate(-50%, calc(-50% - ${window.innerHeight * 0.6}px)) scale(0.95)` },
-      ],
-      { duration: 320, easing: "ease-in", fill: "forwards" }
-    ),
-    animateElement(overlay, [{ opacity: 1 }, { opacity: 0 }], {
-      duration: 600,
-      easing: "ease-out",
-      fill: "forwards",
-    }),
-  ]);
-
-  overlay.remove();
-  flyingGroup.remove();
-  pointsLabel.remove();
+        { duration: 300, easing: "ease-in", fill: "forwards" }
+      ),
+      animateElement(overlay, [{ opacity: 1 }, { opacity: 0 }], {
+        duration: 600,
+        easing: "ease-out",
+        fill: "forwards",
+      }),
+    ]);
+  } finally {
+    stage.remove();
+    overlay.remove();
+    scoreAnimationActive = false;
+  }
 }
 
 function animateScoreCountUp(oldValue, newValue, el) {
@@ -509,7 +564,7 @@ function renderBoard() {
 }
 
 function handlePointerDown(event) {
-  if (state.gameOver) {
+  if (scoreAnimationActive || state.gameOver) {
     return;
   }
   event.preventDefault();
@@ -542,7 +597,7 @@ function handlePointerDown(event) {
 }
 
 function handlePointerEnter(event) {
-  if (!state.dragState || state.gameOver) {
+  if (scoreAnimationActive || !state.dragState || state.gameOver) {
     return;
   }
   if (state.swapMode || state.bombMode || state.swapperActive || state.pendingSwap) {
@@ -558,7 +613,7 @@ function handlePointerEnter(event) {
 }
 
 function handlePointerMove(event) {
-  if (!state.dragState || state.gameOver) {
+  if (scoreAnimationActive || !state.dragState || state.gameOver) {
     return;
   }
   if (state.swapMode || state.bombMode || state.swapperActive || state.pendingSwap) {
@@ -609,7 +664,7 @@ function handlePointerCancel() {
 }
 
 function handlePointerUp(event) {
-  if (!state.dragState || state.gameOver) {
+  if (scoreAnimationActive || !state.dragState || state.gameOver) {
     return;
   }
   const { moved } = state.dragState;
@@ -1203,6 +1258,9 @@ function clearSingleCard(row, col, consumesFreeBomb) {
 }
 
 async function clearSelectedSequence() {
+  if (scoreAnimationActive) {
+    return;
+  }
   if (!state.sequenceValid || state.sequenceSelection.length < 3) {
     statusEl.textContent = "No valid sequence selected.";
     return;
@@ -1219,7 +1277,7 @@ async function clearSelectedSequence() {
   const animationCards = getSequenceCardSnapshots(selectedCells);
   const prevRects = getCardRects();
   const oldScore = state.score;
-  const pointsEarned = applyScore(selectedCells.length, validation.usesWildcard);
+  const scoreBreakdown = applyScore(selectedCells.length, validation.usesWildcard);
   const newScore = state.score;
 
   selectedCells.forEach(({ row, col }) => {
@@ -1232,7 +1290,7 @@ async function clearSelectedSequence() {
   statusEl.textContent = "Sequence cleared!";
   renderBoard();
   await animateCardMoves(prevRects);
-  await playScoreAnimation({ cards: animationCards, pointsEarned });
+  await playScoreAnimation({ cards: animationCards, ...scoreBreakdown });
   await animateScoreCountUp(oldScore, newScore, scoreEl);
 }
 
@@ -1252,11 +1310,21 @@ function collapseColumns() {
 
 function applyScore(length, usesWildcard) {
   const canastraBonus = length === 7 && !usesWildcard ? 2 : 1;
-  const points = length * state.baseFactor * state.chainMultiplier * canastraBonus;
-  state.score += points;
+  const basePerCard = state.baseFactor;
+  const comboMultiplier = state.chainMultiplier;
+  const rawPoints = length * basePerCard;
+  const finalPoints = rawPoints * comboMultiplier * canastraBonus;
+  state.score += finalPoints;
   state.baseFactor += 1;
   state.chainMultiplier += 1;
-  return points;
+  return {
+    basePerCard,
+    sequenceCount: length,
+    comboMultiplier,
+    chainMultiplier: comboMultiplier,
+    rawPoints,
+    finalPoints,
+  };
 }
 
 function init() {
@@ -1279,14 +1347,27 @@ function updateHud(options = {}) {
   }
   swapCountEl.textContent = state.freeSwapCount;
   bombCountEl.textContent = state.freeBombCount;
-  baseFactorEl.textContent = state.baseFactor;
-  chainValueEl.textContent = state.chainMultiplier;
   freeSwapButton.setAttribute("aria-pressed", state.swapMode ? "true" : "false");
   freeBombButton.setAttribute("aria-pressed", state.bombMode ? "true" : "false");
 }
 
+function setMenuOpen(isOpen) {
+  if (!gameMenuModal) {
+    return;
+  }
+  gameMenuModal.hidden = !isOpen;
+}
+
+function handleMenuKeydown(event) {
+  if (event.key !== "Escape" || gameMenuModal?.hidden) {
+    return;
+  }
+  setMenuOpen(false);
+  menuBtn?.focus();
+}
+
 freeSwapButton.addEventListener("click", () => {
-  if (state.gameOver || state.freeSwapCount <= 0) {
+  if (scoreAnimationActive || state.gameOver || state.freeSwapCount <= 0) {
     return;
   }
   state.swapMode = !state.swapMode;
@@ -1303,7 +1384,7 @@ freeSwapButton.addEventListener("click", () => {
 });
 
 clearSequenceButton?.addEventListener("click", () => {
-  if (!state.sequenceValid || state.sequenceSelection.length < 3) {
+  if (scoreAnimationActive || !state.sequenceValid || state.sequenceSelection.length < 3) {
     return;
   }
   state.lastTap = null;
@@ -1311,7 +1392,7 @@ clearSequenceButton?.addEventListener("click", () => {
 });
 
 freeBombButton.addEventListener("click", () => {
-  if (state.gameOver || state.freeBombCount <= 0) {
+  if (scoreAnimationActive || state.gameOver || state.freeBombCount <= 0) {
     return;
   }
   state.bombMode = !state.bombMode;
@@ -1332,3 +1413,20 @@ boardEl.addEventListener("pointercancel", handlePointerCancel);
 boardEl.addEventListener("pointerleave", handlePointerCancel);
 
 init();
+
+
+menuBtn?.addEventListener("click", () => {
+  setMenuOpen(true);
+});
+
+closeMenuBtn?.addEventListener("click", () => {
+  setMenuOpen(false);
+  menuBtn?.focus();
+});
+
+menuOverlay?.addEventListener("click", () => {
+  setMenuOpen(false);
+  menuBtn?.focus();
+});
+
+document.addEventListener("keydown", handleMenuKeydown);
