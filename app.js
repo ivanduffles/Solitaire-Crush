@@ -70,12 +70,15 @@ const boardEl = document.getElementById("board");
 const scoreEl = document.getElementById("scoreValue");
 const swapCountEl = document.getElementById("freeSwapCount");
 const bombCountEl = document.getElementById("freeBombCount");
-const baseFactorEl = document.getElementById("baseFactorValue");
-const chainValueEl = document.getElementById("chainValue");
 const statusEl = document.getElementById("statusMessage");
 const clearSequenceButton = document.getElementById("clearSequenceButton");
 const freeSwapButton = document.getElementById("freeSwapButton");
 const freeBombButton = document.getElementById("freeBombButton");
+const menuBtn = document.getElementById("menuBtn");
+const gameMenuModal = document.getElementById("gameMenuModal");
+const closeMenuBtn = document.getElementById("closeMenuBtn");
+const menuOverlay = document.getElementById("menuOverlay");
+const scoreRankListEl = document.getElementById("scoreRankList");
 const SWIPE_THRESHOLD_RATIO = 0.35;
 
 function animateElement(element, keyframes, options) {
@@ -127,7 +130,14 @@ function getSequenceCardSnapshots(selection) {
     }));
 }
 
-async function playScoreAnimation({ cards, pointsEarned }) {
+async function playScoreAnimation({
+  cards,
+  basePerCard,
+  sequenceCount,
+  comboMultiplier,
+  rawPoints,
+  finalPoints,
+}) {
   if (!cards?.length) {
     return;
   }
@@ -139,7 +149,27 @@ async function playScoreAnimation({ cards, pointsEarned }) {
 
   const pointsLabel = document.createElement("div");
   pointsLabel.className = "score-points-label";
-  pointsLabel.textContent = `+${pointsEarned} points`;
+
+  if ((comboMultiplier ?? 1) > 1) {
+    const comboLine = document.createElement("div");
+    comboLine.className = "score-points-label__combo";
+    comboLine.textContent = `${comboMultiplier}x COMBO`;
+
+    const rawLine = document.createElement("div");
+    rawLine.className = "score-points-label__raw";
+    rawLine.textContent = `+${rawPoints} points (${sequenceCount} × ${basePerCard})`;
+
+    const finalLine = document.createElement("div");
+    finalLine.className = "score-points-label__final";
+    finalLine.textContent = `+${finalPoints} points!`;
+
+    pointsLabel.append(comboLine, rawLine, finalLine);
+  } else {
+    const finalLine = document.createElement("div");
+    finalLine.className = "score-points-label__final";
+    finalLine.textContent = `+${finalPoints} points!`;
+    pointsLabel.append(finalLine);
+  }
 
   const snapshots = cards
     .map((entry) => {
@@ -195,7 +225,7 @@ async function playScoreAnimation({ cards, pointsEarned }) {
 
   clones.forEach(({ clone }) => flyingGroup.appendChild(clone));
   pointsLabel.style.left = `${centerX}px`;
-  pointsLabel.style.top = `${centerY - 48}px`;
+  pointsLabel.style.top = `${centerY - 56}px`;
   document.body.append(overlay, flyingGroup, pointsLabel);
 
   await new Promise((resolve) => requestAnimationFrame(resolve));
@@ -1219,7 +1249,7 @@ async function clearSelectedSequence() {
   const animationCards = getSequenceCardSnapshots(selectedCells);
   const prevRects = getCardRects();
   const oldScore = state.score;
-  const pointsEarned = applyScore(selectedCells.length, validation.usesWildcard);
+  const scoreBreakdown = applyScore(selectedCells.length, validation.usesWildcard);
   const newScore = state.score;
 
   selectedCells.forEach(({ row, col }) => {
@@ -1232,7 +1262,7 @@ async function clearSelectedSequence() {
   statusEl.textContent = "Sequence cleared!";
   renderBoard();
   await animateCardMoves(prevRects);
-  await playScoreAnimation({ cards: animationCards, pointsEarned });
+  await playScoreAnimation({ cards: animationCards, ...scoreBreakdown });
   await animateScoreCountUp(oldScore, newScore, scoreEl);
 }
 
@@ -1252,11 +1282,20 @@ function collapseColumns() {
 
 function applyScore(length, usesWildcard) {
   const canastraBonus = length === 7 && !usesWildcard ? 2 : 1;
-  const points = length * state.baseFactor * state.chainMultiplier * canastraBonus;
-  state.score += points;
+  const basePerCard = state.baseFactor;
+  const comboMultiplier = state.chainMultiplier;
+  const rawPoints = length * basePerCard;
+  const finalPoints = rawPoints * comboMultiplier * canastraBonus;
+  state.score += finalPoints;
   state.baseFactor += 1;
   state.chainMultiplier += 1;
-  return points;
+  return {
+    basePerCard,
+    sequenceCount: length,
+    comboMultiplier,
+    rawPoints,
+    finalPoints,
+  };
 }
 
 function init() {
@@ -1279,10 +1318,35 @@ function updateHud(options = {}) {
   }
   swapCountEl.textContent = state.freeSwapCount;
   bombCountEl.textContent = state.freeBombCount;
-  baseFactorEl.textContent = state.baseFactor;
-  chainValueEl.textContent = state.chainMultiplier;
   freeSwapButton.setAttribute("aria-pressed", state.swapMode ? "true" : "false");
   freeBombButton.setAttribute("aria-pressed", state.bombMode ? "true" : "false");
+}
+
+function renderScoringRankList() {
+  if (!scoreRankListEl) {
+    return;
+  }
+  const rankItems = RANKS.map((rank) => `<li><strong>${rank}</strong>: base ${state.baseFactor}</li>`);
+  rankItems.push(`<li><strong>Joker</strong>: base ${state.baseFactor}</li>`);
+  scoreRankListEl.innerHTML = rankItems.join("");
+}
+
+function setMenuOpen(isOpen) {
+  if (!gameMenuModal) {
+    return;
+  }
+  gameMenuModal.hidden = !isOpen;
+  if (isOpen) {
+    renderScoringRankList();
+  }
+}
+
+function handleMenuKeydown(event) {
+  if (event.key !== "Escape" || gameMenuModal?.hidden) {
+    return;
+  }
+  setMenuOpen(false);
+  menuBtn?.focus();
 }
 
 freeSwapButton.addEventListener("click", () => {
@@ -1332,3 +1396,20 @@ boardEl.addEventListener("pointercancel", handlePointerCancel);
 boardEl.addEventListener("pointerleave", handlePointerCancel);
 
 init();
+
+
+menuBtn?.addEventListener("click", () => {
+  setMenuOpen(true);
+});
+
+closeMenuBtn?.addEventListener("click", () => {
+  setMenuOpen(false);
+  menuBtn?.focus();
+});
+
+menuOverlay?.addEventListener("click", () => {
+  setMenuOpen(false);
+  menuBtn?.focus();
+});
+
+document.addEventListener("keydown", handleMenuKeydown);
