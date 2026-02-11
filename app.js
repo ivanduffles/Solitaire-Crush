@@ -999,6 +999,7 @@ function animateCardMoves(prevRects) {
     let deltaX = 0;
     let deltaY = 0;
     let animationClass = "card--animating";
+    let transitionDelayMs = 0;
     let timeoutMs = 280;
 
     if (prevRect) {
@@ -1012,9 +1013,9 @@ function animateCardMoves(prevRects) {
       );
       deltaY = startTop - nextRect.top;
       animationClass = "card--dropping";
-      timeoutMs = 440;
-      const row = Number(cardEl.dataset.row);
-      cardEl.style.transitionDelay = `${Math.max(0, row) * 20}ms`;
+      transitionDelayMs = Math.max(0, Number(cardEl.dataset.row)) * 20;
+      timeoutMs = 320 + transitionDelayMs + 120;
+      cardEl.style.transitionDelay = `${transitionDelayMs}ms`;
     }
 
     if (deltaX === 0 && deltaY === 0) {
@@ -1023,6 +1024,7 @@ function animateCardMoves(prevRects) {
       }
       return;
     }
+
     cardEl.style.transform = `translate(${deltaX}px, ${deltaY}px)`;
     animations.push(
       new Promise((resolve) => {
