@@ -330,17 +330,51 @@ body {
 .score-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.25);
+  background: rgba(0, 0, 0, 0.5);
   opacity: 0;
-  z-index: 999;
-  pointer-events: none;
+  z-index: 1300;
+  pointer-events: auto;
 }
 
-.score-fly-group {
+.score-stage {
   position: fixed;
-  inset: 0;
-  z-index: 1000;
+  z-index: 1301;
   pointer-events: none;
+  left: 0;
+  right: 0;
+  top: max(calc(env(safe-area-inset-top) + 12px), 12px);
+  bottom: max(calc(env(safe-area-inset-bottom) + 12px), 12px);
+  display: grid;
+  place-items: center;
+}
+
+.score-stage__content {
+  max-width: min(92vw, 720px);
+  max-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 24px);
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 14px;
+}
+
+.score-text-stack {
+  display: grid;
+  gap: 8px;
+  text-align: center;
+  color: #fef08a;
+  text-shadow: 0 8px 18px rgba(15, 23, 42, 0.65);
+}
+
+.score-cards-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+}
+
+.score-card-slot {
+  border-radius: 6px;
+  opacity: 0;
 }
 
 .score-card-clone {
@@ -358,18 +392,7 @@ body {
   pointer-events: none;
 }
 
-.score-points-label {
-  position: fixed;
-  z-index: 1001;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%) scale(0.9);
-  opacity: 0;
-  display: grid;
-  gap: 8px;
-  text-align: center;
-  color: #fef08a;
-  text-shadow: 0 8px 18px rgba(15, 23, 42, 0.65);
+.score-line {
   pointer-events: none;
 }
 
