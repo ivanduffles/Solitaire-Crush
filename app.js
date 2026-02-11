@@ -1404,7 +1404,13 @@ function attemptSequence(cards, direction, aceValue) {
       return { valid: false, usesWildcard: false };
     }
   }
-  return { valid: true, usesWildcard: wildcardState.used };
+  return {
+    valid: true,
+    usesWildcard: wildcardState.used,
+    wildcardConsumption: wildcardState.used
+      ? { by: wildcardState.usedBy, index: wildcardState.usedAtIndex }
+      : null,
+  };
 }
 
 function matchOrConsumeWildcard({ card, expectedRank, aceValue, wildcardState, sequenceIndex }) {
@@ -1461,7 +1467,7 @@ function canWildcardRepresentExpected(card, expectedRank) {
 }
 
 function runSequenceValidationDebugChecks() {
-  if (!window.__DEBUG_SEQUENCE_VALIDATION) {
+  if (typeof window === "undefined" || !window.__DEBUG_SEQUENCE_VALIDATION) {
     return;
   }
 
@@ -1480,6 +1486,7 @@ function runSequenceValidationDebugChecks() {
     console.log(`[sequence-debug] ${name}`, {
       cards,
       passingAttempt: passing ? passing.label : null,
+      wildcardConsumption: passing ? passing.result.wildcardConsumption : null,
       results,
     });
   };
@@ -1692,7 +1699,9 @@ boardEl.addEventListener("pointermove", handlePointerMove);
 boardEl.addEventListener("pointercancel", handlePointerCancel);
 boardEl.addEventListener("pointerleave", handlePointerCancel);
 
-runSequenceValidationDebugChecks();
+if (window.__DEBUG_SEQUENCE_VALIDATION) {
+  runSequenceValidationDebugChecks();
+}
 init();
 
 
