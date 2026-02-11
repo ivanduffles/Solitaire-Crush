@@ -884,6 +884,32 @@ function startDragSelection() {
   updateSelectionUI();
 }
 
+function canExtendSelection(currentSelection, nextCard) {
+  if (!currentSelection.length) {
+    return false;
+  }
+  const lastCard = currentSelection[currentSelection.length - 1];
+  if (!areOrthogonallyAdjacent(lastCard, nextCard)) {
+    return false;
+  }
+  const candidateSelection = [...currentSelection, nextCard];
+  if (candidateSelection.length === 2) {
+    return validateSequencePair(candidateSelection).valid;
+  }
+  return validateSequence(candidateSelection).valid;
+}
+
+function resetDragSelectionToFirst(reason = "Invalid sequence path.") {
+  const [firstCard] = state.sequenceSelection;
+  if (!firstCard) {
+    return;
+  }
+  state.sequenceSelection = [{ row: firstCard.row, col: firstCard.col }];
+  state.sequenceDirection = null;
+  state.sequenceValid = false;
+  statusEl.textContent = reason;
+}
+
 function extendDragSelection(row, col) {
   if (!state.dragSelecting || !state.sequenceSelection.length) {
     return;
@@ -909,11 +935,15 @@ function extendDragSelection(row, col) {
   if (existingIndex !== -1) {
     return;
   }
-  if (!areOrthogonallyAdjacent(lastCell, { row, col })) {
+
+  const nextCard = { row, col };
+  if (!canExtendSelection(selection, nextCard)) {
+    resetDragSelectionToFirst();
+    updateSelectionUI();
     return;
   }
 
-  selection.push({ row, col });
+  selection.push(nextCard);
   applyDragSelectionValidation();
   updateSelectionUI();
 }
