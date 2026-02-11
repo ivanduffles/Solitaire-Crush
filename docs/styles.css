@@ -363,6 +363,17 @@ body {
   opacity: 0;
 }
 
+.bomb-impact {
+  position: absolute;
+  width: min(22vmin, 160px);
+  aspect-ratio: 1 / 1;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(255, 48, 48, 0.58) 0%, rgba(255, 48, 48, 0.2) 38%, rgba(255, 48, 48, 0) 75%);
+  transform: translate(-50%, -50%) scale(0.25);
+  opacity: 0;
+  will-change: transform, opacity;
+}
+
 .bomb-ring {
   position: absolute;
   width: min(18vmin, 120px);

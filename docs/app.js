@@ -221,8 +221,13 @@ async function playBombExplosion({ centerRect, affectedCardEls = [] }) {
   ringSecondary.style.left = `${centerX}px`;
   ringSecondary.style.top = `${centerY}px`;
 
+  const impact = document.createElement("div");
+  impact.className = "bomb-impact";
+  impact.style.left = `${centerX}px`;
+  impact.style.top = `${centerY}px`;
+
   const particleFx = createParticleCanvasExplosion(centerX, centerY);
-  layer.append(flash, ringPrimary, ringSecondary, particleFx.canvas);
+  layer.append(flash, impact, ringPrimary, ringSecondary, particleFx.canvas);
   document.body.append(layer);
 
   const animations = [
@@ -234,6 +239,14 @@ async function playBombExplosion({ centerRect, affectedCardEls = [] }) {
         { opacity: 0 },
       ],
       { duration: 120, easing: "ease-out", fill: "forwards" }
+    ),
+    animateElement(
+      impact,
+      [
+        { transform: "translate(-50%, -50%) scale(0.25)", opacity: 0.72 },
+        { transform: "translate(-50%, -50%) scale(2.6)", opacity: 0 },
+      ],
+      { duration: 300, easing: "ease-out", fill: "forwards" }
     ),
     animateElement(
       ringPrimary,
@@ -263,6 +276,19 @@ async function playBombExplosion({ centerRect, affectedCardEls = [] }) {
           { transform: `scale(0.9) rotate(${index % 2 === 0 ? "5" : "-5"}deg)`, opacity: 0 },
         ],
         { duration: 280, easing: "ease-in", fill: "forwards" }
+      )
+    );
+    animations.push(
+      animateElement(
+        cardEl,
+        [
+          { backgroundColor: "#ffffff", boxShadow: "0 0 0 rgba(255, 32, 32, 0)", offset: 0 },
+          { backgroundColor: "#ff4646", boxShadow: "0 0 24px rgba(255, 32, 32, 0.95)", offset: 0.25 },
+          { backgroundColor: "#fff2f2", boxShadow: "0 0 10px rgba(255, 90, 90, 0.7)", offset: 0.52 },
+          { backgroundColor: "#ff2323", boxShadow: "0 0 28px rgba(255, 20, 20, 1)", offset: 0.74 },
+          { backgroundColor: "#ffe3e3", boxShadow: "0 0 0 rgba(255, 32, 32, 0)", offset: 1 },
+        ],
+        { duration: 280, easing: "ease-out", fill: "forwards" }
       )
     );
   });
