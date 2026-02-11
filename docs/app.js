@@ -83,6 +83,7 @@ const closeMenuBtn = document.getElementById("closeMenuBtn");
 const menuOverlay = document.getElementById("menuOverlay");
 
 let scoreAnimationActive = false;
+let bombExplosionActive = false;
 const SWIPE_THRESHOLD_RATIO = 0.35;
 const LONG_PRESS_MS = 210;
 const LONG_PRESS_MOVE_TOLERANCE_TOUCH = 10;
@@ -111,6 +112,164 @@ function animateElement(element, keyframes, options) {
       resolve();
     }, duration);
   });
+}
+
+
+function createParticleCanvasExplosion(x, y) {
+  const canvas = document.createElement("canvas");
+  canvas.className = "fx-particles";
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  const context = canvas.getContext("2d");
+
+  if (!context) {
+    return { canvas, done: Promise.resolve() };
+  }
+
+  const particleCount = 28;
+  const particles = Array.from({ length: particleCount }, () => {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 2 + Math.random() * 4;
+    return {
+      x,
+      y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      radius: 1 + Math.random() * 2.5,
+      life: 250 + Math.random() * 250,
+      ttl: 250 + Math.random() * 250,
+    };
+  });
+
+  let rafId = null;
+  let settled = false;
+  const resolveDone = [];
+  const done = new Promise((resolve) => resolveDone.push(resolve));
+
+  const start = performance.now();
+  function step(now) {
+    const delta = now - start;
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    let activeCount = 0;
+
+    particles.forEach((particle) => {
+      const progress = Math.max(0, 1 - delta / particle.life);
+      if (progress <= 0) {
+        return;
+      }
+      activeCount += 1;
+      particle.x += particle.vx;
+      particle.y += particle.vy;
+      particle.vx *= 0.98;
+      particle.vy = particle.vy * 0.98 + 0.04;
+      context.fillStyle = `rgba(255, 245, 210, ${progress})`;
+      context.beginPath();
+      context.arc(particle.x, particle.y, particle.radius * progress + 0.4, 0, Math.PI * 2);
+      context.fill();
+    });
+
+    if (activeCount > 0) {
+      rafId = window.requestAnimationFrame(step);
+      return;
+    }
+
+    if (!settled) {
+      settled = true;
+      resolveDone.forEach((resolve) => resolve());
+    }
+  }
+
+  rafId = window.requestAnimationFrame(step);
+
+  return {
+    canvas,
+    done,
+    cleanup: () => {
+      if (rafId !== null) {
+        window.cancelAnimationFrame(rafId);
+      }
+      if (!settled) {
+        settled = true;
+        resolveDone.forEach((resolve) => resolve());
+      }
+    },
+  };
+}
+
+async function playBombExplosion({ centerRect, affectedCardEls = [] }) {
+  if (!centerRect) {
+    return;
+  }
+
+  const centerX = centerRect.left + centerRect.width / 2;
+  const centerY = centerRect.top + centerRect.height / 2;
+
+  const layer = document.createElement("div");
+  layer.className = "fx-layer";
+
+  const flash = document.createElement("div");
+  flash.className = "bomb-flash";
+
+  const ringPrimary = document.createElement("div");
+  ringPrimary.className = "bomb-ring";
+  ringPrimary.style.left = `${centerX}px`;
+  ringPrimary.style.top = `${centerY}px`;
+
+  const ringSecondary = document.createElement("div");
+  ringSecondary.className = "bomb-ring bomb-ring--secondary";
+  ringSecondary.style.left = `${centerX}px`;
+  ringSecondary.style.top = `${centerY}px`;
+
+  const particleFx = createParticleCanvasExplosion(centerX, centerY);
+  layer.append(flash, ringPrimary, ringSecondary, particleFx.canvas);
+  document.body.append(layer);
+
+  const animations = [
+    animateElement(
+      flash,
+      [
+        { opacity: 0 },
+        { opacity: 0.1, offset: 0.35 },
+        { opacity: 0 },
+      ],
+      { duration: 120, easing: "ease-out", fill: "forwards" }
+    ),
+    animateElement(
+      ringPrimary,
+      [
+        { transform: "translate(-50%, -50%) scale(0.2)", opacity: 0.62 },
+        { transform: "translate(-50%, -50%) scale(2.2)", opacity: 0 },
+      ],
+      { duration: 380, easing: "cubic-bezier(0.22, 0.61, 0.36, 1)", fill: "forwards" }
+    ),
+    animateElement(
+      ringSecondary,
+      [
+        { transform: "translate(-50%, -50%) scale(0.3)", opacity: 0.48 },
+        { transform: "translate(-50%, -50%) scale(1.95)", opacity: 0 },
+      ],
+      { duration: 320, easing: "ease-out", fill: "forwards", delay: 50 }
+    ),
+  ];
+
+  affectedCardEls.filter(Boolean).forEach((cardEl, index) => {
+    animations.push(
+      animateElement(
+        cardEl,
+        [
+          { transform: "scale(1) rotate(0deg)", opacity: 1 },
+          { transform: `scale(1.08) rotate(${index % 2 === 0 ? "-6" : "6"}deg)`, opacity: 0.9, offset: 0.45 },
+          { transform: `scale(0.9) rotate(${index % 2 === 0 ? "5" : "-5"}deg)`, opacity: 0 },
+        ],
+        { duration: 280, easing: "ease-in", fill: "forwards" }
+      )
+    );
+  });
+
+  await Promise.all([...animations, particleFx.done]);
+
+  particleFx.cleanup?.();
+  layer.remove();
 }
 
 function detectDoubleTap({ row, col }, now = performance.now()) {
@@ -620,7 +779,7 @@ function handlePointerDown(event) {
 }
 
 function handlePointerEnter(event) {
-  if (scoreAnimationActive || !state.dragState || state.gameOver) {
+  if (scoreAnimationActive || bombExplosionActive || !state.dragState || state.gameOver) {
     return;
   }
   if (state.swapMode || state.bombMode || state.pendingSwap) {
@@ -636,7 +795,7 @@ function handlePointerEnter(event) {
 }
 
 function handlePointerMove(event) {
-  if (scoreAnimationActive || !state.dragState || state.gameOver) {
+  if (scoreAnimationActive || bombExplosionActive || !state.dragState || state.gameOver) {
     return;
   }
   if (state.swapMode || state.bombMode || state.pendingSwap) {
@@ -706,8 +865,8 @@ function handlePointerCancel() {
   state.dragState = null;
 }
 
-function handlePointerUp(event) {
-  if (scoreAnimationActive || !state.dragState || state.gameOver) {
+async function handlePointerUp(event) {
+  if (scoreAnimationActive || bombExplosionActive || !state.dragState || state.gameOver) {
     return;
   }
   const { moved } = state.dragState;
@@ -756,7 +915,7 @@ function handlePointerUp(event) {
     if (detectDoubleTap({ row, col }, now)) {
       clearDragVisual();
       state.dragState = null;
-      clearSingleCard(row, col, true);
+      await clearSingleCard(row, col, true);
       return;
     }
     statusEl.textContent = "Bomb ready: double tap to clear.";
@@ -795,7 +954,7 @@ function handlePointerUp(event) {
       clearDragVisual();
       state.dragState = null;
       clearSequenceSelection();
-      clearSingleCard(row, col, false);
+      await clearSingleCard(row, col, false);
       return;
     }
     state.lastBombTap = { row, col, time: now };
@@ -1445,10 +1604,24 @@ function clearSequenceSelection() {
   state.sequenceDirection = null;
 }
 
-function clearSingleCard(row, col, consumesFreeBomb) {
-  if (!state.grid[row][col]) {
+async function clearSingleCard(row, col, consumesFreeBomb) {
+  if (!state.grid[row][col] || bombExplosionActive) {
     return;
   }
+
+  const bombCardEl = boardEl.querySelector(`.card[data-row="${row}"][data-col="${col}"]`);
+  const centerRect = bombCardEl?.getBoundingClientRect();
+  const affectedCardEls = bombCardEl ? [bombCardEl] : [];
+
+  bombExplosionActive = true;
+  try {
+    if (centerRect) {
+      await playBombExplosion({ centerRect, affectedCardEls });
+    }
+  } finally {
+    bombExplosionActive = false;
+  }
+
   state.grid[row][col] = null;
   collapseColumns();
   state.chainMultiplier = 1;
@@ -1572,7 +1745,7 @@ function handleMenuKeydown(event) {
 }
 
 freeSwapButton.addEventListener("click", () => {
-  if (scoreAnimationActive || state.gameOver || state.freeSwapCount <= 0) {
+  if (scoreAnimationActive || bombExplosionActive || state.gameOver || state.freeSwapCount <= 0) {
     return;
   }
   state.swapMode = !state.swapMode;
@@ -1589,7 +1762,7 @@ freeSwapButton.addEventListener("click", () => {
 });
 
 clearSequenceButton?.addEventListener("click", () => {
-  if (scoreAnimationActive || !state.sequenceValid || state.sequenceSelection.length < 3) {
+  if (scoreAnimationActive || bombExplosionActive || !state.sequenceValid || state.sequenceSelection.length < 3) {
     return;
   }
   state.lastTap = null;
@@ -1597,7 +1770,7 @@ clearSequenceButton?.addEventListener("click", () => {
 });
 
 freeBombButton.addEventListener("click", () => {
-  if (scoreAnimationActive || state.gameOver || state.freeBombCount <= 0) {
+  if (scoreAnimationActive || bombExplosionActive || state.gameOver || state.freeBombCount <= 0) {
     return;
   }
   state.bombMode = !state.bombMode;
