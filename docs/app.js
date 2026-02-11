@@ -576,8 +576,13 @@ function handlePointerDown(event) {
   const row = Number(event.currentTarget.dataset.row);
   const col = Number(event.currentTarget.dataset.col);
   const card = state.grid[row][col];
+  const isSwapperSourceDrag =
+    state.swapperActive &&
+    state.swapperSource &&
+    state.swapperSource.row === row &&
+    state.swapperSource.col === col;
   const dragDisabled =
-    state.bombMode || state.swapMode || state.swapperActive || state.pendingSwap;
+    state.bombMode || state.swapMode || state.pendingSwap || (state.swapperActive && !isSwapperSourceDrag);
   if (!card && !dragDisabled) {
     return;
   }
@@ -601,7 +606,7 @@ function handlePointerEnter(event) {
   if (scoreAnimationActive || !state.dragState || state.gameOver) {
     return;
   }
-  if (state.swapMode || state.bombMode || state.swapperActive || state.pendingSwap) {
+  if (state.swapMode || state.bombMode || state.pendingSwap) {
     return;
   }
   const row = Number(event.currentTarget.dataset.row);
@@ -617,7 +622,7 @@ function handlePointerMove(event) {
   if (scoreAnimationActive || !state.dragState || state.gameOver) {
     return;
   }
-  if (state.swapMode || state.bombMode || state.swapperActive || state.pendingSwap) {
+  if (state.swapMode || state.bombMode || state.pendingSwap) {
     return;
   }
   const { startX, startY, cardEl } = state.dragState;
@@ -691,7 +696,7 @@ function handlePointerUp(event) {
   }
 
   if (state.swapperActive) {
-    handleSwapperSwap(row, col);
+    handleSwapperTap(row, col);
     clearDragVisual();
     state.dragState = null;
     return;
@@ -754,9 +759,15 @@ function handlePointerUp(event) {
   }
 
   if (!state.sequenceSelection.length && card && card.isSwapper) {
+    // Tap starts a normal sequence; swapper special swap is only tap-to-non-adjacent
+    // while adjacent swaps require an explicit drag gesture.
+    resetSequenceToStart(
+      row,
+      col,
+      "Swapper selected. Tap adjacent to build a sequence, or tap a non-adjacent card to swap."
+    );
     state.swapperActive = true;
     state.swapperSource = { row, col };
-    statusEl.textContent = "Swapper active: select any card to swap.";
     renderBoard();
     clearDragVisual();
     state.dragState = null;
@@ -958,7 +969,7 @@ function shiftColumnDown(col, startRow) {
   }
 }
 
-function handleSwapperSwap(row, col) {
+function handleSwapperTap(row, col) {
   if (!state.swapperSource) {
     state.swapperActive = false;
     return;
@@ -976,12 +987,20 @@ function handleSwapperSwap(row, col) {
     return;
   }
 
-  const swapperCard = state.grid[sourceRow][sourceCol];
   const isAdjacent =
     Math.abs(sourceRow - row) + Math.abs(sourceCol - col) === 1;
+  // Tap-on-adjacent is reserved for sequence selection. Adjacent swaps happen via drag only.
+  if (isAdjacent) {
+    state.swapperActive = false;
+    state.swapperSource = null;
+    handleSequenceTap(row, col);
+    return;
+  }
+
+  const swapperCard = state.grid[sourceRow][sourceCol];
   state.animateMoves = true;
   swapCards(sourceRow, sourceCol, row, col);
-  if (swapperCard && !isAdjacent) {
+  if (swapperCard) {
     swapperCard.isSwapper = false;
   }
   state.swapperActive = false;
