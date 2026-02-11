@@ -195,7 +195,7 @@ function handlePointerDown(event) {
   if (state.gameOver) {
     return;
   }
-  if (state.swapMode || state.bombMode) {
+  if (state.bombMode) {
     return;
   }
   const row = Number(event.currentTarget.dataset.row);
