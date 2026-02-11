@@ -569,9 +569,6 @@ function handlePointerDown(event) {
   }
   event.preventDefault();
   // Drag swaps only apply in normal mode with a real card.
-  if (state.swapMode || state.pendingSwap) {
-    return;
-  }
   const row = Number(event.currentTarget.dataset.row);
   const col = Number(event.currentTarget.dataset.col);
   const card = state.grid[row][col];
