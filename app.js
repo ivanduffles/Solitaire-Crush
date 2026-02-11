@@ -43,6 +43,8 @@ const JOKER_HAT_SVG = `
 `;
 
 const DEBUG_CARD_ANIM = window.__DEBUG_CARD_ANIM === true;
+const MOVE_ANIM_DURATION_MS = DEBUG_CARD_ANIM ? 700 : 220;
+const DROP_ANIM_DURATION_MS = DEBUG_CARD_ANIM ? 1200 : 320;
 
 const state = {
   grid: [],
@@ -1016,7 +1018,7 @@ function animateCardMoves(prevRects) {
     let deltaY = 0;
     let animationClass = "card--animating";
     let transitionDelayMs = 0;
-    let timeoutMs = 280;
+    let timeoutMs = MOVE_ANIM_DURATION_MS + 60;
 
     if (prevRect) {
       deltaX = prevRect.left - nextRect.left;
@@ -1030,7 +1032,7 @@ function animateCardMoves(prevRects) {
       deltaY = startTop - nextRect.top;
       animationClass = "card--dropping";
       transitionDelayMs = Math.max(0, Number(cardEl.dataset.row)) * 20;
-      timeoutMs = 320 + transitionDelayMs + 120;
+      timeoutMs = DROP_ANIM_DURATION_MS + transitionDelayMs + 120;
       cardEl.style.transitionDelay = `${transitionDelayMs}ms`;
 
       if (DEBUG_CARD_ANIM && newCards[0] === cardEl) {
@@ -1045,6 +1047,7 @@ function animateCardMoves(prevRects) {
           startTop,
           deltaY,
           appliedTransform: `translate(0px, ${deltaY}px)`,
+          dropDurationMs: DROP_ANIM_DURATION_MS,
         });
       }
     }
@@ -1056,6 +1059,9 @@ function animateCardMoves(prevRects) {
       return;
     }
 
+    cardEl.style.transitionDuration = `${
+      animationClass === "card--dropping" ? DROP_ANIM_DURATION_MS : MOVE_ANIM_DURATION_MS
+    }ms`;
     cardEl.style.transform = `translate(${deltaX}px, ${deltaY}px)`;
     animations.push(
       new Promise((resolve) => {
@@ -1082,6 +1088,7 @@ function animateCardMoves(prevRects) {
             }
             cardEl.classList.remove("card--animating", "card--dropping");
             cardEl.style.transitionDelay = "";
+            cardEl.style.transitionDuration = "";
             resolve();
           };
           cardEl.addEventListener("transitionend", () => cleanup("transitionend"), {
@@ -1096,6 +1103,7 @@ function animateCardMoves(prevRects) {
     cards.forEach((cardEl) => {
       cardEl.classList.remove("card--animating", "card--dropping");
       cardEl.style.transitionDelay = "";
+      cardEl.style.transitionDuration = "";
     });
   });
 }
