@@ -78,7 +78,6 @@ const menuBtn = document.getElementById("menuBtn");
 const gameMenuModal = document.getElementById("gameMenuModal");
 const closeMenuBtn = document.getElementById("closeMenuBtn");
 const menuOverlay = document.getElementById("menuOverlay");
-const scoreRankListEl = document.getElementById("scoreRankList");
 
 let scoreAnimationActive = false;
 const SWIPE_THRESHOLD_RATIO = 0.35;
@@ -1352,23 +1351,11 @@ function updateHud(options = {}) {
   freeBombButton.setAttribute("aria-pressed", state.bombMode ? "true" : "false");
 }
 
-function renderScoringRankList() {
-  if (!scoreRankListEl) {
-    return;
-  }
-  const rankItems = RANKS.map((rank) => `<li><strong>${rank}</strong>: base ${state.baseFactor}</li>`);
-  rankItems.push(`<li><strong>Joker</strong>: base ${state.baseFactor}</li>`);
-  scoreRankListEl.innerHTML = rankItems.join("");
-}
-
 function setMenuOpen(isOpen) {
   if (!gameMenuModal) {
     return;
   }
   gameMenuModal.hidden = !isOpen;
-  if (isOpen) {
-    renderScoringRankList();
-  }
 }
 
 function handleMenuKeydown(event) {
