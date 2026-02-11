@@ -565,7 +565,7 @@ function renderBoard() {
 }
 
 function handlePointerDown(event) {
-  if (state.gameOver) {
+  if (scoreAnimationActive || state.gameOver) {
     return;
   }
   event.preventDefault();
@@ -598,7 +598,7 @@ function handlePointerDown(event) {
 }
 
 function handlePointerEnter(event) {
-  if (!state.dragState || state.gameOver) {
+  if (scoreAnimationActive || !state.dragState || state.gameOver) {
     return;
   }
   if (state.swapMode || state.bombMode || state.swapperActive || state.pendingSwap) {
@@ -614,7 +614,7 @@ function handlePointerEnter(event) {
 }
 
 function handlePointerMove(event) {
-  if (!state.dragState || state.gameOver) {
+  if (scoreAnimationActive || !state.dragState || state.gameOver) {
     return;
   }
   if (state.swapMode || state.bombMode || state.swapperActive || state.pendingSwap) {
@@ -665,7 +665,7 @@ function handlePointerCancel() {
 }
 
 function handlePointerUp(event) {
-  if (!state.dragState || state.gameOver) {
+  if (scoreAnimationActive || !state.dragState || state.gameOver) {
     return;
   }
   const { moved } = state.dragState;
@@ -1380,7 +1380,7 @@ function handleMenuKeydown(event) {
 }
 
 freeSwapButton.addEventListener("click", () => {
-  if (state.gameOver || state.freeSwapCount <= 0) {
+  if (scoreAnimationActive || state.gameOver || state.freeSwapCount <= 0) {
     return;
   }
   state.swapMode = !state.swapMode;
@@ -1397,7 +1397,7 @@ freeSwapButton.addEventListener("click", () => {
 });
 
 clearSequenceButton?.addEventListener("click", () => {
-  if (!state.sequenceValid || state.sequenceSelection.length < 3) {
+  if (scoreAnimationActive || !state.sequenceValid || state.sequenceSelection.length < 3) {
     return;
   }
   state.lastTap = null;
@@ -1405,7 +1405,7 @@ clearSequenceButton?.addEventListener("click", () => {
 });
 
 freeBombButton.addEventListener("click", () => {
-  if (state.gameOver || state.freeBombCount <= 0) {
+  if (scoreAnimationActive || state.gameOver || state.freeBombCount <= 0) {
     return;
   }
   state.bombMode = !state.bombMode;
