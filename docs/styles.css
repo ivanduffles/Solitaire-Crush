@@ -138,6 +138,14 @@ body {
   display: block;
 }
 
+.hud__icon--swap {
+  color: #256de9;
+}
+
+.hud__icon--bomb {
+  color: #ff903b;
+}
+
 .hud__button-amount {
   font-weight: 800;
   font-size: clamp(16px, 4.4vw, 20px);
@@ -334,11 +342,11 @@ body {
 }
 
 .badge--bomb {
-  color: #1f2937;
+  color: #ff903b;
 }
 
 .badge--swapper {
-  color: #1d4ed8;
+  color: #256de9;
 }
 
 
