@@ -78,7 +78,7 @@ body {
 .hud__score span:not(.hud__label) {
   color: #f8fafc;
   font-weight: 800;
-  font-size: clamp(34px, 10vw, 56px);
+  font-size: clamp(28px, 8.2vw, 44px);
   line-height: 0.9;
   text-shadow: 0 2px 4px rgba(15, 23, 42, 0.55);
 }
@@ -313,20 +313,32 @@ body {
   position: absolute;
   top: clamp(2px, 0.7vmin, 6px);
   right: clamp(2px, 0.7vmin, 6px);
-  min-width: 16px;
+  width: 16px;
   height: 16px;
-  padding: 0 4px;
+  padding: 0;
   border-radius: 999px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: clamp(9px, 1.7vmin, 11px);
-  font-weight: 700;
+  display: grid;
+  place-items: center;
   line-height: 1;
-  color: #f8fafc;
-  background: rgba(15, 23, 42, 0.85);
-  border: 1px solid rgba(148, 163, 184, 0.55);
+  color: #1f2937;
+  background: transparent;
+  border: none;
   pointer-events: none;
+}
+
+.badge svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  filter: drop-shadow(0 1px 1px rgba(255, 255, 255, 0.35));
+}
+
+.badge--bomb {
+  color: #1f2937;
+}
+
+.badge--swapper {
+  color: #1d4ed8;
 }
 
 
