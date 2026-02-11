@@ -899,17 +899,6 @@ function canExtendSelection(currentSelection, nextCard) {
   return validateSequence(candidateSelection).valid;
 }
 
-function resetDragSelectionToFirst(reason = "Invalid sequence path.") {
-  const [firstCard] = state.sequenceSelection;
-  if (!firstCard) {
-    return;
-  }
-  state.sequenceSelection = [{ row: firstCard.row, col: firstCard.col }];
-  state.sequenceDirection = null;
-  state.sequenceValid = false;
-  statusEl.textContent = reason;
-}
-
 function extendDragSelection(row, col) {
   if (!state.dragSelecting || !state.sequenceSelection.length) {
     return;
@@ -938,8 +927,7 @@ function extendDragSelection(row, col) {
 
   const nextCard = { row, col };
   if (!canExtendSelection(selection, nextCard)) {
-    resetDragSelectionToFirst();
-    updateSelectionUI();
+    statusEl.textContent = "Invalid sequence path.";
     return;
   }
 
