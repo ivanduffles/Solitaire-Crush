@@ -599,12 +599,16 @@ function handlePointerDown(event) {
   const canLongPressSelect =
     !!card &&
     !(state.bombMode || state.swapMode || state.swapperActive || state.pendingSwap);
-  if (canLongPressSelect) {
+  const isMouseDragSelect = event.pointerType === "mouse" && event.button === 0;
+  if (canLongPressSelect && isMouseDragSelect) {
+    state.dragState.longPressCancelled = true;
+    startDragSelection();
+  } else if (canLongPressSelect) {
     state.longPressTimer = window.setTimeout(() => {
       if (!state.dragState || state.dragState.longPressCancelled || scoreAnimationActive || state.gameOver) {
         return;
       }
-      startDragSelection(row, col);
+      startDragSelection();
     }, LONG_PRESS_MS);
   }
   event.currentTarget.setPointerCapture(event.pointerId);
@@ -859,14 +863,14 @@ function areOrthogonallyAdjacent(cardA, cardB) {
 }
 
 function updateSelectionUI() {
-  updateClearButtonVisibility();
   renderBoard();
 }
 
-function startDragSelection(row, col) {
+function startDragSelection() {
   // Long press needs a short hold before drag selection becomes active,
   // so quick taps still route through normal tap/double-tap handling.
-  const card = state.grid[row][col];
+  const { row, col } = state.dragStartCard || {};
+  const card = Number.isInteger(row) && Number.isInteger(col) ? state.grid[row][col] : null;
   if (!card) {
     return;
   }
