@@ -56,6 +56,7 @@ const state = {
   sequenceDirection: null,
   swapMode: false,
   bombMode: false,
+  bombTarget: null,
   pendingSwap: null,
   swapperActive: false,
   swapperSource: null,
@@ -700,6 +701,14 @@ function renderBoard() {
       ) {
         cell.classList.add("card--selected");
       }
+      if (
+        state.bombMode &&
+        state.bombTarget &&
+        state.bombTarget.row === row &&
+        state.bombTarget.col === col
+      ) {
+        cell.classList.add("card--bomb-selected");
+      }
       if (selectedSet.has(`${row}-${col}`)) {
         cell.classList.add("card--selected");
       }
@@ -909,15 +918,19 @@ async function handlePointerUp(event) {
   if (state.bombMode) {
     if (!card) {
       state.doubleTapState = null;
+      state.bombTarget = null;
+      renderBoard();
       state.dragState = null;
       return;
     }
     if (detectDoubleTap({ row, col }, now)) {
       clearDragVisual();
       state.dragState = null;
+      state.bombTarget = null;
       await clearSingleCard(row, col, true);
       return;
     }
+    state.bombTarget = { row, col };
     statusEl.textContent = "Bomb ready: double tap to clear.";
     renderBoard();
     clearDragVisual();
@@ -1609,6 +1622,8 @@ async function clearSingleCard(row, col, consumesFreeBomb) {
     return;
   }
 
+  state.bombTarget = null;
+
   const bombCardEl = boardEl.querySelector(`.card[data-row="${row}"][data-col="${col}"]`);
   const centerRect = bombCardEl?.getBoundingClientRect();
   const affectedCardEls = bombCardEl ? [bombCardEl] : [];
@@ -1628,6 +1643,7 @@ async function clearSingleCard(row, col, consumesFreeBomb) {
   if (consumesFreeBomb) {
     state.freeBombCount = Math.max(0, state.freeBombCount - 1);
     state.bombMode = false;
+    state.bombTarget = null;
   }
   dropCard();
   updateHud();
@@ -1750,6 +1766,7 @@ freeSwapButton.addEventListener("click", () => {
   }
   state.swapMode = !state.swapMode;
   state.bombMode = false;
+  state.bombTarget = null;
   state.pendingSwap = null;
   state.swapperActive = false;
   state.swapperSource = null;
@@ -1774,6 +1791,9 @@ freeBombButton.addEventListener("click", () => {
     return;
   }
   state.bombMode = !state.bombMode;
+  if (!state.bombMode) {
+    state.bombTarget = null;
+  }
   state.swapMode = false;
   state.pendingSwap = null;
   state.swapperActive = false;
