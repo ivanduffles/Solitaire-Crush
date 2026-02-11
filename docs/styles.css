@@ -51,17 +51,16 @@ body {
   flex-wrap: wrap;
 }
 
-.hud__meta {
-  display: flex;
-  gap: 16px;
-  font-size: 14px;
-}
-
-.hud__meta > div,
 .hud__score {
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+.hud__score span:not(.hud__label) {
+  color: #f8fafc;
+  font-weight: 600;
+  text-shadow: 0 1px 2px rgba(15, 23, 42, 0.5);
 }
 
 .hud__label {
@@ -70,13 +69,6 @@ body {
   letter-spacing: 0.08em;
   color: #cbd5f5;
   text-shadow: 0 1px 2px rgba(15, 23, 42, 0.45);
-}
-
-.hud__meta span:not(.hud__label),
-.hud__score span:not(.hud__label) {
-  color: #f8fafc;
-  font-weight: 600;
-  text-shadow: 0 1px 2px rgba(15, 23, 42, 0.5);
 }
 
 .hud__counts {
@@ -98,6 +90,13 @@ body {
 .hud__button[aria-pressed="true"] {
   background: #2563eb;
   border-color: #1d4ed8;
+}
+
+.hud__menu-button {
+  min-width: 44px;
+  padding-inline: 0;
+  font-size: 22px;
+  line-height: 1;
 }
 
 .board-viewport {
@@ -295,7 +294,7 @@ body {
 }
 
 .card--animating {
-  transition: transform 1000ms ease;
+  transition: transform 220ms ease;
   will-change: transform;
 }
 
@@ -325,4 +324,179 @@ body {
 
 .clear-button[hidden] {
   display: none;
+}
+
+/* Score points animation */
+.score-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  opacity: 0;
+  z-index: 1300;
+  pointer-events: auto;
+}
+
+.score-stage {
+  position: fixed;
+  z-index: 1301;
+  pointer-events: none;
+  left: 0;
+  right: 0;
+  top: max(calc(env(safe-area-inset-top) + 12px), 12px);
+  bottom: max(calc(env(safe-area-inset-bottom) + 12px), 12px);
+  display: grid;
+  place-items: center;
+}
+
+.score-stage__content {
+  max-width: min(92vw, 720px);
+  max-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 24px);
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 14px;
+}
+
+.score-text-stack {
+  display: grid;
+  gap: 8px;
+  text-align: center;
+  color: #fef08a;
+  text-shadow: 0 8px 18px rgba(15, 23, 42, 0.65);
+}
+
+.score-cards-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+}
+
+.score-card-slot {
+  border-radius: 6px;
+  opacity: 0;
+}
+
+.score-card-clone {
+  position: fixed;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  border-radius: 6px;
+  border: 1px solid rgba(0, 0, 0, 0.25);
+  background: #ffffff;
+  overflow: hidden;
+  transform: translate(0, 0);
+  opacity: 1;
+  pointer-events: none;
+}
+
+.score-line {
+  pointer-events: none;
+}
+
+.score-points-label__combo {
+  font-size: clamp(16px, 4vmin, 28px);
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+
+.score-points-label__raw {
+  font-size: clamp(14px, 3.5vmin, 22px);
+  color: #f8fafc;
+  font-weight: 600;
+}
+
+.score-points-label__final {
+  font-size: clamp(30px, 7.2vmin, 52px);
+  font-weight: 900;
+}
+
+.score-blink {
+  animation: scoreBlinkPulse 180ms ease-in-out 3;
+}
+
+@keyframes scoreBlinkPulse {
+  0%,
+  100% {
+    opacity: 1;
+    text-shadow: 0 1px 2px rgba(15, 23, 42, 0.5);
+  }
+  50% {
+    opacity: 0.75;
+    text-shadow: 0 0 10px rgba(250, 204, 21, 0.85);
+  }
+}
+
+
+.menu-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+}
+
+.menu-modal[hidden] {
+  display: none;
+}
+
+.menu-modal__overlay {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: rgba(15, 23, 42, 0.75);
+  cursor: pointer;
+}
+
+.menu-modal__panel {
+  position: relative;
+  z-index: 1;
+  width: min(720px, calc(100% - 24px));
+  margin: min(8vh, 64px) auto;
+  max-height: calc(100dvh - 24px);
+  overflow: auto;
+  border: 1px solid #334155;
+  border-radius: 14px;
+  background: #0f172a;
+  color: #e2e8f0;
+  padding: 16px;
+}
+
+.menu-modal__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.menu-modal__header h2 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.menu-modal__content h3 {
+  margin: 12px 0 6px;
+}
+
+.menu-modal__content p,
+.menu-modal__content li {
+  line-height: 1.45;
+}
+
+.menu-modal__content ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+@media (max-width: 640px) {
+  .menu-modal__panel {
+    width: 100%;
+    height: 100dvh;
+    max-height: 100dvh;
+    margin: 0;
+    border-radius: 0;
+    border-left: 0;
+    border-right: 0;
+  }
 }
