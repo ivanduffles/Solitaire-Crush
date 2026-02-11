@@ -225,6 +225,7 @@ async function playScoreAnimation({
     clone.style.top = `${entry.rect.top}px`;
     clone.style.width = `${entry.rect.width}px`;
     clone.style.height = `${entry.rect.height}px`;
+    clone.style.transform = "none";
     stage.append(clone);
     return {
       clone,
@@ -245,8 +246,10 @@ async function playScoreAnimation({
 
     slots.forEach((slot, i) => {
       const targetRect = slot.getBoundingClientRect();
-      clones[i].targetLeft = targetRect.left;
-      clones[i].targetTop = targetRect.top;
+      const cloneWidth = Number.parseFloat(clones[i].clone.style.width) || targetRect.width;
+      const cloneHeight = Number.parseFloat(clones[i].clone.style.height) || targetRect.height;
+      clones[i].targetLeft = targetRect.left + (targetRect.width - cloneWidth) / 2;
+      clones[i].targetTop = targetRect.top + (targetRect.height - cloneHeight) / 2;
     });
 
     await Promise.all([
@@ -259,23 +262,13 @@ async function playScoreAnimation({
         animateElement(
           clone,
           [
-            { transform: "translate(0px, 0px)", opacity: 1 },
-            {
-              transform: `translate(${targetLeft - startLeft}px, ${targetTop - startTop}px)`,
-              opacity: 1,
-            },
+            { left: `${startLeft}px`, top: `${startTop}px`, opacity: 1 },
+            { left: `${targetLeft}px`, top: `${targetTop}px`, opacity: 1 },
           ],
           { duration: 300, easing: "ease-out", fill: "forwards" }
         )
       ),
     ]);
-
-    clones.forEach(({ clone, targetLeft, targetTop }) => {
-      clone.style.left = `${targetLeft}px`;
-      clone.style.top = `${targetTop}px`;
-      clone.style.transform = "translate(0px, 0px)";
-      clone.style.opacity = "1";
-    });
 
     await wait(150);
 
