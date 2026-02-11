@@ -108,6 +108,10 @@ const menuOverlay = document.getElementById("menuOverlay");
 
 let scoreAnimationActive = false;
 let bombExplosionActive = false;
+const DEBUG_NEW_CARD_ENTER = false;
+let previousRenderCardIds = new Set();
+let hasRenderedBoard = false;
+let pendingBoardAnimationPromise = Promise.resolve();
 const SWIPE_THRESHOLD_RATIO = 0.35;
 const LONG_PRESS_MS = 210;
 const LONG_PRESS_MOVE_TOLERANCE_TOUCH = 10;
@@ -703,8 +707,12 @@ function buildJokerCardContent() {
   return wrapper;
 }
 
-function renderBoard() {
-  const prevRects = state.animateMoves ? getCardRects() : null;
+function renderBoard(options = {}) {
+  const { prevRectsOverride = null, awaitScorePromise = null } = options;
+  const shouldAnimateMoves = Boolean(prevRectsOverride || state.animateMoves);
+  const prevRects = prevRectsOverride || (shouldAnimateMoves ? getCardRects() : null);
+  const currentCardIds = new Set();
+  const newCardEls = [];
   boardEl.innerHTML = "";
   const selectedSet = new Set(
     state.sequenceSelection.map(({ row, col }) => `${row}-${col}`)
@@ -722,6 +730,10 @@ function renderBoard() {
         cell.textContent = "·";
       } else {
         cell.dataset.cardId = card.id;
+        currentCardIds.add(card.id);
+        if (hasRenderedBoard && !previousRenderCardIds.has(card.id)) {
+          newCardEls.push(cell);
+        }
         if (ASSET_MODE === "sprite") {
           const assetKey = getCardAssetKey(card);
           if (assetKey) {
@@ -787,11 +799,27 @@ function renderBoard() {
       boardEl.appendChild(cell);
     }
   }
-  if (prevRects) {
-    requestAnimationFrame(() => animateCardMoves(prevRects));
+  if (DEBUG_NEW_CARD_ENTER) {
+    console.log(`[new-card-enter] newCards detected: ${newCardEls.length}`);
   }
+
+  const boardMovePromise = prevRects
+    ? new Promise((resolve) => {
+      requestAnimationFrame(() => {
+        resolve(animateCardMoves(prevRects));
+      });
+    })
+    : Promise.resolve();
+  const scoreWaitPromise = awaitScorePromise || Promise.resolve();
+  pendingBoardAnimationPromise = Promise.resolve(scoreWaitPromise)
+    .then(() => boardMovePromise)
+    .then(() => animateNewCardsEnter(newCardEls));
+
+  previousRenderCardIds = currentCardIds;
+  hasRenderedBoard = true;
   updateClearButtonVisibility();
   state.animateMoves = false;
+  return pendingBoardAnimationPromise;
 }
 
 function handlePointerDown(event) {
@@ -1517,6 +1545,57 @@ function animateCardMoves(prevRects) {
   });
 }
 
+function animateNewCardsEnter(newCardEls = []) {
+  if (!newCardEls.length) {
+    return Promise.resolve();
+  }
+  if (DEBUG_NEW_CARD_ENTER) {
+    console.log(`[new-card-enter] enter animation start (${newCardEls.length})`);
+  }
+
+  newCardEls.forEach((cardEl) => {
+    const nextRect = cardEl.getBoundingClientRect();
+    const startX = window.innerWidth / 2;
+    const startY = -nextRect.height - 20;
+    const deltaX = startX - (nextRect.left + nextRect.width / 2);
+    const deltaY = startY - (nextRect.top + nextRect.height / 2);
+    cardEl.style.opacity = "0";
+    cardEl.style.transform = `translate(${deltaX}px, ${deltaY}px)`;
+  });
+
+  return new Promise((resolveAll) => {
+    requestAnimationFrame(() => {
+      const animations = newCardEls.map(
+        (cardEl) => new Promise((resolve) => {
+          cardEl.classList.add("card--entering");
+          cardEl.style.transform = "";
+          cardEl.style.opacity = "1";
+          let settled = false;
+          const cleanup = () => {
+            if (settled) {
+              return;
+            }
+            settled = true;
+            cardEl.classList.remove("card--entering");
+            cardEl.style.removeProperty("transform");
+            cardEl.style.removeProperty("opacity");
+            resolve();
+          };
+          cardEl.addEventListener("transitionend", cleanup, { once: true });
+          window.setTimeout(cleanup, 620);
+        })
+      );
+
+      Promise.all(animations).then(() => {
+        if (DEBUG_NEW_CARD_ENTER) {
+          console.log("[new-card-enter] enter animation end");
+        }
+        resolveAll();
+      });
+    });
+  });
+}
+
 function swapCards(rowA, colA, rowB, colB) {
   const temp = state.grid[rowA][colA];
   state.grid[rowA][colA] = state.grid[rowB][colB];
@@ -1814,7 +1893,6 @@ async function clearSelectedSequence() {
 
   const selectedCells = [...state.sequenceSelection];
   const animationCards = getSequenceCardSnapshots(selectedCells);
-  const prevRects = getCardRects();
   const oldScore = state.score;
   const scoreBreakdown = applyScore(selectedCells.length, validation.usesWildcard);
   const newScore = state.score;
@@ -1827,10 +1905,14 @@ async function clearSelectedSequence() {
   clearSequenceSelection();
   updateHud({ preserveScore: true });
   statusEl.textContent = "Sequence cleared!";
-  renderBoard();
-  await animateCardMoves(prevRects);
-  await playScoreAnimation({ cards: animationCards, ...scoreBreakdown });
-  await animateScoreCountUp(oldScore, newScore, scoreEl);
+  const scoreAnimationPromise = (async () => {
+    await playScoreAnimation({ cards: animationCards, ...scoreBreakdown });
+    await animateScoreCountUp(oldScore, newScore, scoreEl);
+  })();
+  await renderBoard({
+    prevRectsOverride: getCardRects(),
+    awaitScorePromise: scoreAnimationPromise,
+  });
 }
 
 function collapseColumns() {

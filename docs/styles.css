@@ -403,6 +403,13 @@ body {
   will-change: transform;
 }
 
+.card--entering {
+  transition:
+    transform 500ms cubic-bezier(.2,.8,.2,1),
+    opacity 500ms ease-out;
+  will-change: transform, opacity;
+}
+
 .status {
   display: flex;
   align-items: center;
