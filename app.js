@@ -1294,6 +1294,8 @@ function swapCards(rowA, colA, rowB, colB) {
   state.grid[rowB][colB] = temp;
 }
 
+const WILDCARD_LIMIT_PER_SEQUENCE = 1;
+
 function validateSequence(selection) {
   if (selection.length < 3) {
     return { valid: false, usesWildcard: false };
@@ -1305,7 +1307,7 @@ function validateSequence(selection) {
   if (cards.some((card) => card === null)) {
     return { valid: false, usesWildcard: false };
   }
-  const nonWildcards = cards.filter((card) => !isPotentialWildcard(card));
+  const nonWildcards = cards.filter((card) => !isWildcardCard(card));
   if (nonWildcards.length < 2) {
     return { valid: false, usesWildcard: false };
   }
@@ -1353,7 +1355,9 @@ function validateSequencePair(selection) {
   if (cards.some((card) => card === null)) {
     return { valid: false };
   }
-  const nonWildcards = cards.filter((card) => !isPotentialWildcard(card));
+  // Pair validation only enforces suit for non-wild cards.
+  // If either card is wild, we defer strict rank validation to 3+ cards.
+  const nonWildcards = cards.filter((card) => !isWildcardCard(card));
   if (nonWildcards.length < 2) {
     return { valid: true };
   }
@@ -1361,38 +1365,71 @@ function validateSequencePair(selection) {
   return { valid: first.suit === second.suit };
 }
 
+/*
+ * Sequence wildcard policy (single source of truth):
+ * - Wild cards are Joker and rank "2".
+ * - Wildcards may substitute rank only (suit is enforced separately by non-wild suit checks).
+ * - At most one wildcard substitution can be consumed per sequence.
+ * - Current gameplay rule: rank "2" cannot substitute when the expected rank is literal 2.
+ *   (Changing this behavior later should be a one-line edit in canWildcardRepresentExpected.)
+ */
 function attemptSequence(cards, direction, aceValue) {
-  let wildcardUsed = false;
-  const baseIndex = cards.findIndex((card) => !isPotentialWildcard(card));
+  const wildcardState = {
+    used: false,
+    usedCount: 0,
+    usedBy: null,
+    usedAtIndex: null,
+  };
+  const baseIndex = cards.findIndex((card) => !isWildcardCard(card));
   if (baseIndex === -1) {
     return { valid: false, usesWildcard: false };
   }
-  const baseValue = rankValue(cards[baseIndex], aceValue);
+  const baseValue = getRankValue(cards[baseIndex], aceValue);
   if (baseValue === null) {
     return { valid: false, usesWildcard: false };
   }
   for (let i = 0; i < cards.length; i += 1) {
-    const expected = baseValue + direction * (i - baseIndex);
-    if (expected < 1 || expected > 14) {
+    const expectedRank = baseValue + direction * (i - baseIndex);
+    if (expectedRank < 1 || expectedRank > 14) {
       return { valid: false, usesWildcard: false };
     }
-    const card = cards[i];
-    const value = rankValue(card, aceValue);
-    if (value === expected) {
-      continue;
-    }
-    if (wildcardUsed || !isPotentialWildcard(card)) {
+    const matchResult = matchOrConsumeWildcard({
+      card: cards[i],
+      expectedRank,
+      aceValue,
+      wildcardState,
+      sequenceIndex: i,
+    });
+    if (!matchResult.ok) {
       return { valid: false, usesWildcard: false };
     }
-    if (card.rank === "2" && expected === 2) {
-      return { valid: false, usesWildcard: false };
-    }
-    wildcardUsed = true;
   }
-  return { valid: true, usesWildcard: wildcardUsed };
+  return { valid: true, usesWildcard: wildcardState.used };
 }
 
-function rankValue(card, aceValue) {
+function matchOrConsumeWildcard({ card, expectedRank, aceValue, wildcardState, sequenceIndex }) {
+  const value = getRankValue(card, aceValue);
+  if (value === expectedRank) {
+    return { ok: true, usedWildcardNow: false };
+  }
+  if (!isWildcardCard(card)) {
+    return { ok: false, usedWildcardNow: false };
+  }
+  if (
+    wildcardState.usedCount >= WILDCARD_LIMIT_PER_SEQUENCE ||
+    !canWildcardRepresentExpected(card, expectedRank)
+  ) {
+    return { ok: false, usedWildcardNow: false };
+  }
+
+  wildcardState.used = true;
+  wildcardState.usedCount += 1;
+  wildcardState.usedBy = card.rank;
+  wildcardState.usedAtIndex = sequenceIndex;
+  return { ok: true, usedWildcardNow: true };
+}
+
+function getRankValue(card, aceValue) {
   if (card.rank === "A") {
     return aceValue;
   }
@@ -1411,8 +1448,46 @@ function rankValue(card, aceValue) {
   return Number(card.rank);
 }
 
-function isPotentialWildcard(card) {
+function isWildcardCard(card) {
   return card.rank === "Joker" || card.rank === "2";
+}
+
+function canWildcardRepresentExpected(card, expectedRank) {
+  if (!isWildcardCard(card)) {
+    return false;
+  }
+  // Keep current gameplay behavior: rank "2" cannot substitute as literal rank 2.
+  return !(card.rank === "2" && expectedRank === 2);
+}
+
+function runSequenceValidationDebugChecks() {
+  if (!window.__DEBUG_SEQUENCE_VALIDATION) {
+    return;
+  }
+
+  const card = (rank, suit = "♠") => ({ rank, suit });
+  const inspectAttempts = (name, cards) => {
+    const attempts = [
+      { direction: 1, aceValue: 1, label: "asc/A-low" },
+      { direction: 1, aceValue: 14, label: "asc/A-high" },
+      { direction: -1, aceValue: 14, label: "desc/A-high" },
+    ];
+    const results = attempts.map((attempt) => ({
+      ...attempt,
+      result: attemptSequence(cards, attempt.direction, attempt.aceValue),
+    }));
+    const passing = results.find((entry) => entry.result.valid);
+    console.log(`[sequence-debug] ${name}`, {
+      cards,
+      passingAttempt: passing ? passing.label : null,
+      results,
+    });
+  };
+
+  inspectAttempts("one wildcard consumed", [card("5"), card("Joker"), card("7")]);
+  inspectAttempts("wildcard present but not consumed", [card("A"), card("2"), card("3")]);
+  inspectAttempts("two cannot represent literal two", [card("A"), card("2"), card("4")]);
+  inspectAttempts("ace low/high comparison", [card("Q"), card("K"), card("A")]);
 }
 
 function dropCard() {
@@ -1617,6 +1692,7 @@ boardEl.addEventListener("pointermove", handlePointerMove);
 boardEl.addEventListener("pointercancel", handlePointerCancel);
 boardEl.addEventListener("pointerleave", handlePointerCancel);
 
+runSequenceValidationDebugChecks();
 init();
 
 
