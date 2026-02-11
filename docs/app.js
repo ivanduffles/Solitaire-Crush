@@ -570,6 +570,7 @@ function handlePointerDown(event) {
   event.preventDefault();
   // Drag swaps only apply in normal mode with a real card.
   if (state.swapMode || state.pendingSwap) {
+  if (state.bombMode) {
     return;
   }
   const row = Number(event.currentTarget.dataset.row);
