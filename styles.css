@@ -299,6 +299,11 @@ body {
   will-change: transform;
 }
 
+.card--dropping {
+  transition: transform 320ms cubic-bezier(.2, .8, .2, 1);
+  will-change: transform;
+}
+
 .status {
   display: flex;
   align-items: center;

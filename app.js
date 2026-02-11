@@ -986,25 +986,48 @@ function getCardRects() {
 }
 
 function animateCardMoves(prevRects) {
+  if (!prevRects) {
+    return Promise.resolve();
+  }
   const animations = [];
   const cards = boardEl.querySelectorAll(".card[data-card-id]");
+  const boardRect = boardEl.getBoundingClientRect();
   cards.forEach((cardEl) => {
     const cardId = cardEl.dataset.cardId;
     const prevRect = prevRects[cardId];
-    if (!prevRect) {
-      return;
-    }
     const nextRect = cardEl.getBoundingClientRect();
-    const deltaX = prevRect.left - nextRect.left;
-    const deltaY = prevRect.top - nextRect.top;
+    let deltaX = 0;
+    let deltaY = 0;
+    let animationClass = "card--animating";
+    let timeoutMs = 280;
+
+    if (prevRect) {
+      deltaX = prevRect.left - nextRect.left;
+      deltaY = prevRect.top - nextRect.top;
+    } else {
+      // New cards are identified by card ids that are present in the DOM but missing from prevRects.
+      const startTop = Math.min(
+        -nextRect.height - 24,
+        boardRect.top - nextRect.height - 24
+      );
+      deltaY = startTop - nextRect.top;
+      animationClass = "card--dropping";
+      timeoutMs = 440;
+      const row = Number(cardEl.dataset.row);
+      cardEl.style.transitionDelay = `${Math.max(0, row) * 20}ms`;
+    }
+
     if (deltaX === 0 && deltaY === 0) {
+      if (!prevRect) {
+        cardEl.style.transitionDelay = "";
+      }
       return;
     }
     cardEl.style.transform = `translate(${deltaX}px, ${deltaY}px)`;
     animations.push(
       new Promise((resolve) => {
         requestAnimationFrame(() => {
-          cardEl.classList.add("card--animating");
+          cardEl.classList.add(animationClass);
           cardEl.style.transform = "";
           let done = false;
           const cleanup = () => {
@@ -1012,18 +1035,20 @@ function animateCardMoves(prevRects) {
               return;
             }
             done = true;
-            cardEl.classList.remove("card--animating");
+            cardEl.classList.remove("card--animating", "card--dropping");
+            cardEl.style.transitionDelay = "";
             resolve();
           };
           cardEl.addEventListener("transitionend", cleanup, { once: true });
-          window.setTimeout(cleanup, 280);
+          window.setTimeout(cleanup, timeoutMs);
         });
       })
     );
   });
   return Promise.all(animations).then(() => {
     cards.forEach((cardEl) => {
-      cardEl.classList.remove("card--animating");
+      cardEl.classList.remove("card--animating", "card--dropping");
+      cardEl.style.transitionDelay = "";
     });
   });
 }
