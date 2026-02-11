@@ -978,6 +978,7 @@ function handleSwapperTap(row, col) {
   if (sourceRow === row && sourceCol === col) {
     state.swapperActive = false;
     state.swapperSource = null;
+    clearSequenceSelection();
     statusEl.textContent = "Swapper selection cleared.";
     renderBoard();
     return;
@@ -999,6 +1000,7 @@ function handleSwapperTap(row, col) {
 
   const swapperCard = state.grid[sourceRow][sourceCol];
   state.animateMoves = true;
+  clearSequenceSelection();
   swapCards(sourceRow, sourceCol, row, col);
   if (swapperCard) {
     swapperCard.isSwapper = false;
