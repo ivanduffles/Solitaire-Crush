@@ -63,6 +63,9 @@ const state = {
   dragState: null,
   lastTap: null,
   doubleTapState: null,
+  dragSelecting: false,
+  longPressTimer: null,
+  dragStartCard: null,
   animateMoves: false,
 };
 
@@ -81,6 +84,8 @@ const menuOverlay = document.getElementById("menuOverlay");
 
 let scoreAnimationActive = false;
 const SWIPE_THRESHOLD_RATIO = 0.35;
+const LONG_PRESS_MS = 210;
+const LONG_PRESS_MOVE_TOLERANCE = 10;
 
 function animateElement(element, keyframes, options) {
   if (element.animate) {
@@ -569,10 +574,6 @@ function handlePointerDown(event) {
   }
   event.preventDefault();
   // Drag swaps only apply in normal mode with a real card.
-  if (state.swapMode || state.pendingSwap) {
-  if (state.bombMode) {
-    return;
-  }
   const row = Number(event.currentTarget.dataset.row);
   const col = Number(event.currentTarget.dataset.col);
   const card = state.grid[row][col];
@@ -590,7 +591,26 @@ function handlePointerDown(event) {
     cardEl: dragDisabled ? null : event.currentTarget,
     moved: false,
     swiped: false,
+    longPressCancelled: false,
   };
+  state.dragSelecting = false;
+  state.dragStartCard = { row, col };
+  clearLongPressTimer();
+  const canLongPressSelect =
+    !!card &&
+    !(state.bombMode || state.swapMode || state.swapperActive || state.pendingSwap);
+  const isMouseDragSelect = event.pointerType === "mouse" && event.button === 0;
+  if (canLongPressSelect && isMouseDragSelect) {
+    state.dragState.longPressCancelled = true;
+    startDragSelection();
+  } else if (canLongPressSelect) {
+    state.longPressTimer = window.setTimeout(() => {
+      if (!state.dragState || state.dragState.longPressCancelled || scoreAnimationActive || state.gameOver) {
+        return;
+      }
+      startDragSelection();
+    }, LONG_PRESS_MS);
+  }
   event.currentTarget.setPointerCapture(event.pointerId);
   if (!dragDisabled) {
     event.currentTarget.classList.add("card--dragging");
@@ -621,11 +641,27 @@ function handlePointerMove(event) {
     return;
   }
   const { startX, startY, cardEl } = state.dragState;
+  const deltaX = event.clientX - startX;
+  const deltaY = event.clientY - startY;
+  if (!state.dragSelecting && !state.dragState.longPressCancelled) {
+    const movedDistance = Math.hypot(deltaX, deltaY);
+    if (movedDistance > LONG_PRESS_MOVE_TOLERANCE) {
+      state.dragState.longPressCancelled = true;
+      clearLongPressTimer();
+    }
+  }
+
+  if (state.dragSelecting) {
+    const hoveredCard = getCardFromPoint(event.clientX, event.clientY);
+    if (hoveredCard) {
+      extendDragSelection(hoveredCard.row, hoveredCard.col);
+    }
+    return;
+  }
+
   if (!cardEl) {
     return;
   }
-  const deltaX = event.clientX - startX;
-  const deltaY = event.clientY - startY;
   if (state.dragState.swiped) {
     return;
   }
@@ -660,6 +696,8 @@ function handlePointerCancel() {
   if (!state.dragState) {
     return;
   }
+  clearLongPressTimer();
+  endDragSelection(false);
   clearDragVisual();
   state.dragState = null;
 }
@@ -674,6 +712,14 @@ function handlePointerUp(event) {
   const col = dropTarget.col;
   const card = state.grid[row][col];
   const now = performance.now();
+
+  clearLongPressTimer();
+  if (state.dragSelecting) {
+    endDragSelection(true);
+    clearDragVisual();
+    state.dragState = null;
+    return;
+  }
 
   if (moved) {
     handleDragSwap(row, col);
@@ -790,6 +836,126 @@ function getDropTarget(event) {
     return state.dragState.current;
   }
   return { row: 0, col: 0 };
+}
+
+function clearLongPressTimer() {
+  if (state.longPressTimer) {
+    window.clearTimeout(state.longPressTimer);
+    state.longPressTimer = null;
+  }
+}
+
+function getCardFromPoint(x, y) {
+  const cardTarget = document.elementFromPoint(x, y)?.closest?.(".card");
+  if (!cardTarget || cardTarget.classList.contains("card--empty")) {
+    return null;
+  }
+  const row = Number(cardTarget.dataset.row);
+  const col = Number(cardTarget.dataset.col);
+  if (Number.isNaN(row) || Number.isNaN(col) || !state.grid[row]?.[col]) {
+    return null;
+  }
+  return { row, col };
+}
+
+function areOrthogonallyAdjacent(cardA, cardB) {
+  return Math.abs(cardA.row - cardB.row) + Math.abs(cardA.col - cardB.col) === 1;
+}
+
+function updateSelectionUI() {
+  renderBoard();
+}
+
+function startDragSelection() {
+  // Long press needs a short hold before drag selection becomes active,
+  // so quick taps still route through normal tap/double-tap handling.
+  const { row, col } = state.dragStartCard || {};
+  const card = Number.isInteger(row) && Number.isInteger(col) ? state.grid[row][col] : null;
+  if (!card) {
+    return;
+  }
+  state.dragSelecting = true;
+  boardEl.classList.add("board--drag-selecting");
+  boardEl.style.touchAction = "none";
+  state.sequenceSelection = [{ row, col }];
+  state.sequenceDirection = null;
+  state.sequenceValid = false;
+  statusEl.textContent = "Drag to select orthogonally adjacent cards.";
+  updateSelectionUI();
+}
+
+function extendDragSelection(row, col) {
+  if (!state.dragSelecting || !state.sequenceSelection.length) {
+    return;
+  }
+  const selection = state.sequenceSelection;
+  const lastCell = selection[selection.length - 1];
+  if (lastCell.row === row && lastCell.col === col) {
+    return;
+  }
+
+  // Backtrack when the pointer moves to the previous cell in the path.
+  if (selection.length >= 2) {
+    const prevCell = selection[selection.length - 2];
+    if (prevCell.row === row && prevCell.col === col) {
+      selection.pop();
+      applyDragSelectionValidation();
+      updateSelectionUI();
+      return;
+    }
+  }
+
+  const existingIndex = selection.findIndex((cell) => cell.row === row && cell.col === col);
+  if (existingIndex !== -1) {
+    return;
+  }
+  if (!areOrthogonallyAdjacent(lastCell, { row, col })) {
+    return;
+  }
+
+  selection.push({ row, col });
+  applyDragSelectionValidation();
+  updateSelectionUI();
+}
+
+function applyDragSelectionValidation() {
+  const selection = state.sequenceSelection;
+  state.sequenceDirection = null;
+  if (selection.length < 2) {
+    state.sequenceValid = false;
+    statusEl.textContent = "Drag to select orthogonally adjacent cards.";
+    return;
+  }
+  const pairValidation = validateSequencePair(selection.slice(0, 2));
+  if (!pairValidation.valid) {
+    state.sequenceValid = false;
+    statusEl.textContent = "Invalid sequence path.";
+    return;
+  }
+  if (selection.length < 3) {
+    state.sequenceValid = false;
+    statusEl.textContent = "Sequence in progress.";
+    return;
+  }
+  const validation = validateSequence(selection);
+  state.sequenceValid = validation.valid;
+  statusEl.textContent = validation.valid
+    ? "Sequence selected. Double tap to clear or tap Clear."
+    : "Invalid sequence path.";
+}
+
+function endDragSelection(commitSelection) {
+  if (!state.dragSelecting) {
+    return;
+  }
+  state.dragSelecting = false;
+  boardEl.classList.remove("board--drag-selecting");
+  boardEl.style.touchAction = "";
+  if (!commitSelection) {
+    return;
+  }
+  applyDragSelectionValidation();
+  updateSelectionUI();
 }
 
 function handleDragSwap(targetRow, targetCol) {
