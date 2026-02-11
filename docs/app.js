@@ -604,11 +604,7 @@ function handlePointerDown(event) {
   const canLongPressSelect =
     !!card &&
     !(state.bombMode || state.swapMode || state.swapperActive || state.pendingSwap);
-  const isMouseDragSelect = event.pointerType === "mouse" && event.button === 0;
-  if (canLongPressSelect && isMouseDragSelect) {
-    state.dragState.longPressCancelled = true;
-    startDragSelection();
-  } else if (canLongPressSelect) {
+  if (canLongPressSelect) {
     state.longPressTimer = window.setTimeout(() => {
       if (!state.dragState || state.dragState.longPressCancelled || scoreAnimationActive || state.gameOver) {
         return;
