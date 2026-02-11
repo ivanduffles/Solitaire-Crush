@@ -87,6 +87,40 @@ body {
   cursor: pointer;
 }
 
+.hud__button--powerup {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: transparent;
+  border-color: rgba(148, 163, 184, 0.8);
+  padding: 8px 14px;
+}
+
+.hud__icon {
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+
+.hud__icon svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.hud__button-amount {
+  font-weight: 800;
+  font-size: 18px;
+  line-height: 1;
+  color: #f8fafc;
+  min-width: 1ch;
+  text-align: center;
+}
+
 .hud__button[aria-pressed="true"] {
   background: #2563eb;
   border-color: #1d4ed8;
