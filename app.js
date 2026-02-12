@@ -288,8 +288,8 @@ function importSnapshot(snapshot, options = {}) {
   }
   const { historyTransition = null, historyReason = "" } = options;
   const previousRects = historyTransition ? getCardRects() : null;
-  const previousCardElsById = historyTransition === "undo" ? getCardElementMap() : null;
-  const targetCardIds = historyTransition === "undo" ? getCardIdsFromGrid(snapshot.state.grid || []) : null;
+  const previousCardElsById = historyTransition ? getCardElementMap() : null;
+  const targetCardIds = historyTransition ? getCardIdsFromGrid(snapshot.state.grid || []) : null;
 
   Object.keys(state).forEach((key) => {
     delete state[key];
@@ -311,17 +311,34 @@ function importSnapshot(snapshot, options = {}) {
   }
   updateHud();
 
-  const removedCardEls = historyTransition === "undo" && previousCardElsById && targetCardIds
+  const removedCardEls = historyTransition && previousCardElsById && targetCardIds
     ? [...previousCardElsById.entries()]
       .filter(([cardId]) => !targetCardIds.has(cardId))
       .map(([, el]) => el)
     : [];
 
+  const redoBombExplosionRect =
+    historyTransition === "redo" && historyReason.includes("bomb") && removedCardEls.length
+      ? removedCardEls[0].getBoundingClientRect()
+      : null;
+
   return Promise.resolve(renderBoard({
     prevRectsOverride: previousRects,
     historyTransition,
     historyReason,
-  })).then(() => animateUndoRemovedCards({ cardEls: removedCardEls, reason: historyReason }));
+  }))
+    .then(() => {
+      if (historyTransition === "undo") {
+        return animateUndoRemovedCards({ cardEls: removedCardEls, reason: historyReason });
+      }
+      return undefined;
+    })
+    .then(() => {
+      if (redoBombExplosionRect) {
+        return playBombExplosion({ centerRect: redoBombExplosionRect, affectedCardEls: [] });
+      }
+      return undefined;
+    });
 }
 
 function updateHistoryButtons() {
