@@ -2029,7 +2029,7 @@ async function runAutoResolutionFlow(options = {}) {
     maxSpawnCount = 1,
   } = options;
 
-  autoResolutionPromise = autoResolutionPromise.then(async () => {
+  const runFlow = async () => {
     autoResolutionActive = true;
     debugFlowLog("auto resolution start", { reason });
     try {
@@ -2060,8 +2060,9 @@ async function runAutoResolutionFlow(options = {}) {
       autoResolutionActive = false;
       debugFlowLog("auto resolution end", { reason });
     }
-  });
+  };
 
+  autoResolutionPromise = autoResolutionPromise.then(runFlow, runFlow);
   return autoResolutionPromise;
 }
 
@@ -2135,13 +2136,13 @@ async function clearSelectedSequence() {
   updateHud({ preserveScore: true });
   statusEl.textContent = "Sequence cleared!";
 
-  await renderBoard({ prevRectsOverride: prevRects });
   await playScoreAnimation({ cards: animationCards, ...scoreBreakdown });
   await animateScoreCountUp(oldScore, newScore, scoreEl);
 
   await runAutoResolutionFlow({
     reason: "after-sequence-clear",
     spawnContext: "sequence-clear",
+    prevRectsOverride: prevRects,
   });
 }
 
