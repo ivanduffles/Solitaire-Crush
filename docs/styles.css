@@ -160,6 +160,26 @@ body {
   border-color: #1d4ed8;
 }
 
+.hud__button--history {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  font-size: 22px;
+  line-height: 1;
+  background: transparent;
+  touch-action: manipulation;
+}
+
+.hud__button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .hud__menu-button {
   min-width: 44px;
   padding-inline: 0;
@@ -415,19 +435,36 @@ body {
 }
 
 .status {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
   align-items: center;
-  justify-content: space-between;
   gap: 12px;
   flex: 0 0 auto;
-  text-align: center;
   font-size: 14px;
   color: #dbeafe;
   text-shadow: 0 1px 2px rgba(15, 23, 42, 0.45);
 }
 
+.status__left {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  position: relative;
+  z-index: 2;
+}
+
+.status__middle {
+  min-width: 0;
+  text-align: center;
+}
+
+.status__right {
+  display: inline-flex;
+  justify-content: flex-end;
+  min-width: 44px;
+}
+
 .clear-button {
-  margin-left: auto;
   background: #16a34a;
   color: #f8fafc;
   border: 1px solid #15803d;
