@@ -2479,7 +2479,6 @@ async function clearSelectedSequence() {
 
   const selectedCells = [...state.sequenceSelection];
   const animationCards = getSequenceCardSnapshots(selectedCells);
-  const prevRects = getCardRects();
   const oldScore = state.score;
   const scoreBreakdown = applyScore(selectedCells.length, validation.usesWildcard);
   const newScore = state.score;
@@ -2498,10 +2497,10 @@ async function clearSelectedSequence() {
   const scoreCountPromise = animateScoreCountUp(oldScore, newScore, scoreEl);
   await playScoreAnimation({ cards: animationCards, ...scoreBreakdown });
 
+  state.animateMoves = true;
   await runAutoResolutionFlow({
     reason: "after-sequence-clear",
     spawnContext: "sequence-clear",
-    prevRectsOverride: prevRects,
   });
 
   await scoreCountPromise;
