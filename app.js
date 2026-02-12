@@ -2497,10 +2497,11 @@ async function clearSelectedSequence() {
   const scoreCountPromise = animateScoreCountUp(oldScore, newScore, scoreEl);
   await playScoreAnimation({ cards: animationCards, ...scoreBreakdown });
 
-  state.animateMoves = true;
+  const postClearRects = getCardRects();
   await runAutoResolutionFlow({
     reason: "after-sequence-clear",
     spawnContext: "sequence-clear",
+    prevRectsOverride: postClearRects,
   });
 
   await scoreCountPromise;
