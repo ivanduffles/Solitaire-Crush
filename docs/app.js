@@ -694,7 +694,7 @@ async function playBombExplosion({ centerRect, affectedCardEls = [] }) {
 }
 
 function detectDoubleTap({ row, col }, now = performance.now()) {
-  const thresholdMs = 250;
+  const thresholdMs = 420;
   const key = `${row}:${col}`;
   const previous = state.doubleTapState;
   if (previous && previous.key === key && now - previous.time <= thresholdMs) {
@@ -1168,8 +1168,10 @@ function renderBoard(options = {}) {
       }
 
       cell.addEventListener("pointerdown", handlePointerDown);
+      cell.addEventListener("pointermove", handlePointerMove);
       cell.addEventListener("pointerenter", handlePointerEnter);
       cell.addEventListener("pointerup", handlePointerUp);
+      cell.addEventListener("pointercancel", handlePointerCancel);
       boardEl.appendChild(cell);
     }
   }
@@ -1251,7 +1253,6 @@ function handlePointerDown(event) {
       startDragSelection();
     }, LONG_PRESS_MS);
   }
-  event.currentTarget.setPointerCapture(event.pointerId);
   if (!dragDisabled) {
     event.currentTarget.classList.add("card--dragging");
   }
@@ -1404,6 +1405,33 @@ async function handlePointerUp(event) {
     clearDragVisual();
     state.dragState = null;
     return;
+  }
+
+  if (card && state.sequenceSelection.length === 1) {
+    const [selectedCell] = state.sequenceSelection;
+    const tappedCell = { row, col };
+    const isDifferentCell = selectedCell.row !== row || selectedCell.col !== col;
+    const isAdjacentTapSwap = isDifferentCell && areOrthogonallyAdjacent(selectedCell, tappedCell);
+    if (isAdjacentTapSwap) {
+      clearSequenceSelection();
+      pushUndoCheckpoint("tap-swap");
+      state.animateMoves = true;
+      const preSignature = getGridSignature(state.grid);
+      swapCards(selectedCell.row, selectedCell.col, row, col);
+      const committed = await commitMoveFromSignatures(preSignature, {
+        action: "tap-swap",
+        from: selectedCell,
+        to: tappedCell,
+        successContext: "tap-swap",
+        successMessage: "Swap complete.",
+      });
+      if (!committed) {
+        statusEl.textContent = "Move cancelled.";
+      }
+      clearDragVisual();
+      state.dragState = null;
+      return;
+    }
   }
 
   const isInSequence = state.sequenceSelection.some(
@@ -2697,7 +2725,9 @@ freeBombButton.addEventListener("click", () => {
 
 boardEl.addEventListener("pointermove", handlePointerMove);
 boardEl.addEventListener("pointercancel", handlePointerCancel);
-boardEl.addEventListener("pointerleave", handlePointerCancel);
+window.addEventListener("pointermove", handlePointerMove);
+window.addEventListener("pointerup", handlePointerUp);
+window.addEventListener("pointercancel", handlePointerCancel);
 
 renderPowerupButtonIcons();
 if (window.__DEBUG_SEQUENCE_VALIDATION) {
