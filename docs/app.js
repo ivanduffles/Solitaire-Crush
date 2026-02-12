@@ -108,6 +108,9 @@ const menuOverlay = document.getElementById("menuOverlay");
 
 let scoreAnimationActive = false;
 let bombExplosionActive = false;
+const DEBUG_NEW_CARD_ENTER = false;
+let previousRenderCardIds = new Set();
+let hasRenderedBoard = false;
 const SWIPE_THRESHOLD_RATIO = 0.35;
 const LONG_PRESS_MS = 210;
 const LONG_PRESS_MOVE_TOLERANCE_TOUCH = 10;
@@ -703,8 +706,11 @@ function buildJokerCardContent() {
   return wrapper;
 }
 
-function renderBoard() {
-  const prevRects = state.animateMoves ? getCardRects() : null;
+function renderBoard(options = {}) {
+  const { prevRectsOverride = null, awaitScorePromise = null } = options;
+  const prevRects = prevRectsOverride || (state.animateMoves ? getCardRects() : null);
+  const currentCardIds = new Set();
+  const newCardEls = [];
   boardEl.innerHTML = "";
   const selectedSet = new Set(
     state.sequenceSelection.map(({ row, col }) => `${row}-${col}`)
@@ -722,6 +728,11 @@ function renderBoard() {
         cell.textContent = "·";
       } else {
         cell.dataset.cardId = card.id;
+        currentCardIds.add(card.id);
+        if (hasRenderedBoard && !previousRenderCardIds.has(card.id)) {
+          cell.classList.add("card--pre-enter");
+          newCardEls.push(cell);
+        }
         if (ASSET_MODE === "sprite") {
           const assetKey = getCardAssetKey(card);
           if (assetKey) {
@@ -787,11 +798,27 @@ function renderBoard() {
       boardEl.appendChild(cell);
     }
   }
-  if (prevRects) {
-    requestAnimationFrame(() => animateCardMoves(prevRects));
+  if (DEBUG_NEW_CARD_ENTER) {
+    console.log(`[new-card-enter] newCards detected: ${newCardEls.length}`);
   }
+
+  const boardMovePromise = prevRects
+    ? new Promise((resolve) => {
+      requestAnimationFrame(() => {
+        resolve(animateCardMoves(prevRects));
+      });
+    })
+    : Promise.resolve();
+  const scoreWaitPromise = awaitScorePromise || Promise.resolve();
+  const animationSequencePromise = Promise.resolve(scoreWaitPromise)
+    .then(() => boardMovePromise)
+    .then(() => animateNewCardsEnter(newCardEls));
+
+  previousRenderCardIds = currentCardIds;
+  hasRenderedBoard = true;
   updateClearButtonVisibility();
   state.animateMoves = false;
+  return animationSequencePromise;
 }
 
 function handlePointerDown(event) {
@@ -1241,8 +1268,10 @@ function handleDragSwap(targetRow, targetCol) {
   }
   swapCards(startRow, startCol, targetRow, targetCol);
   state.chainMultiplier = 1;
-  dropCard();
-  statusEl.textContent = "Swap complete. Card dropped.";
+  const spawned = dropCard();
+  if (spawned) {
+    statusEl.textContent = "Swap complete. Card dropped.";
+  }
 }
 
 function getSwipeTarget(start, deltaX, deltaY) {
@@ -1270,8 +1299,10 @@ function moveCardToEmpty(startRow, startCol, targetRow, targetCol) {
   state.grid[startRow][startCol] = null;
   shiftColumnDown(startCol, startRow);
   state.chainMultiplier = 1;
-  dropCard();
-  statusEl.textContent = "Move complete. Card dropped.";
+  const spawned = dropCard();
+  if (spawned) {
+    statusEl.textContent = "Move complete. Card dropped.";
+  }
 }
 
 function handleSequenceTap(row, col) {
@@ -1420,8 +1451,10 @@ function handleSwapperTap(row, col) {
   state.swapperActive = false;
   state.swapperSource = null;
   state.chainMultiplier = 1;
-  dropCard();
-  statusEl.textContent = "Swapper used. Card dropped.";
+  const spawned = dropCard();
+  if (spawned) {
+    statusEl.textContent = "Swapper used. Card dropped.";
+  }
   renderBoard();
 }
 
@@ -1449,9 +1482,11 @@ function handleSwapModeTap(row, col) {
   state.swapMode = false;
   state.chainMultiplier = 1;
   state.freeSwapCount = Math.max(0, state.freeSwapCount - 1);
-  dropCard();
+  const spawned = dropCard();
   updateHud();
-  statusEl.textContent = "Swap used. Card dropped.";
+  if (spawned) {
+    statusEl.textContent = "Swap used. Card dropped.";
+  }
   renderBoard();
 }
 
@@ -1517,11 +1552,71 @@ function animateCardMoves(prevRects) {
   });
 }
 
+function animateNewCardsEnter(newCardEls = []) {
+  if (!newCardEls.length) {
+    return Promise.resolve();
+  }
+  if (DEBUG_NEW_CARD_ENTER) {
+    console.log(`[new-card-enter] enter animation start (${newCardEls.length})`);
+  }
+
+  newCardEls.forEach((cardEl) => {
+    const nextRect = cardEl.getBoundingClientRect();
+    const startY = -nextRect.height - 24;
+    const deltaY = startY - nextRect.top;
+    if (DEBUG_NEW_CARD_ENTER) {
+      console.log(
+        `[new-card-enter] entering new card ${cardEl.dataset.cardId} col=${cardEl.dataset.col} deltaY=${Math.round(deltaY)}`
+      );
+    }
+    cardEl.style.opacity = "0";
+    cardEl.style.transform = `translate(0px, ${deltaY}px)`;
+  });
+
+  return new Promise((resolveAll) => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const animations = newCardEls.map(
+        (cardEl) => new Promise((resolve) => {
+          cardEl.classList.add("card--entering");
+          cardEl.classList.remove("card--pre-enter");
+          cardEl.style.transform = "";
+          cardEl.style.opacity = "1";
+          let settled = false;
+          const cleanup = () => {
+            if (settled) {
+              return;
+            }
+            settled = true;
+            cardEl.classList.remove("card--entering");
+            cardEl.classList.remove("card--pre-enter");
+            cardEl.style.removeProperty("transform");
+            cardEl.style.removeProperty("opacity");
+            resolve();
+          };
+          cardEl.addEventListener("transitionend", cleanup, { once: true });
+          window.setTimeout(cleanup, 620);
+        })
+      );
+
+        Promise.all(animations).then(() => {
+          if (DEBUG_NEW_CARD_ENTER) {
+            console.log("[new-card-enter] enter animation end");
+          }
+          resolveAll();
+        });
+      });
+    });
+  });
+}
+
 function swapCards(rowA, colA, rowB, colB) {
   const temp = state.grid[rowA][colA];
   state.grid[rowA][colA] = state.grid[rowB][colB];
   state.grid[rowB][colB] = temp;
 }
+
+const WILDCARD_LIMIT_PER_SEQUENCE = 1;
 
 function validateSequence(selection) {
   if (selection.length < 3) {
@@ -1534,8 +1629,11 @@ function validateSequence(selection) {
   if (cards.some((card) => card === null)) {
     return { valid: false, usesWildcard: false };
   }
-  const nonWildcards = cards.filter((card) => !isPotentialWildcard(card));
-  if (nonWildcards.length < 2) {
+  const nonWildcards = cards.filter((card) => !isWildcardCard(card));
+  // Bug fix: we only need one non-wild anchor card to evaluate expected ranks.
+  // Requiring two rejects valid runs such as 2♣, 2♠, A♠ where one 2 is consumed
+  // as wildcard and the other 2 + Ace provide concrete rank matches.
+  if (nonWildcards.length < 1) {
     return { valid: false, usesWildcard: false };
   }
   const baseSuit = nonWildcards[0].suit;
@@ -1546,6 +1644,7 @@ function validateSequence(selection) {
   const attempts = [
     { direction: 1, aceValue: 1 },
     { direction: 1, aceValue: 14 },
+    { direction: -1, aceValue: 1 },
     { direction: -1, aceValue: 14 },
   ];
 
@@ -1582,7 +1681,9 @@ function validateSequencePair(selection) {
   if (cards.some((card) => card === null)) {
     return { valid: false };
   }
-  const nonWildcards = cards.filter((card) => !isPotentialWildcard(card));
+  // Pair validation only enforces suit for non-wild cards.
+  // If either card is wild, we defer strict rank validation to 3+ cards.
+  const nonWildcards = cards.filter((card) => !isWildcardCard(card));
   if (nonWildcards.length < 2) {
     return { valid: true };
   }
@@ -1590,38 +1691,77 @@ function validateSequencePair(selection) {
   return { valid: first.suit === second.suit };
 }
 
+/*
+ * Sequence wildcard policy (single source of truth):
+ * - Wild cards are Joker and rank "2".
+ * - Wildcards may substitute rank only (suit is enforced separately by non-wild suit checks).
+ * - At most one wildcard substitution can be consumed per sequence.
+ * - Current gameplay rule: rank "2" cannot substitute when the expected rank is literal 2.
+ *   (Changing this behavior later should be a one-line edit in canWildcardRepresentExpected.)
+ */
 function attemptSequence(cards, direction, aceValue) {
-  let wildcardUsed = false;
-  const baseIndex = cards.findIndex((card) => !isPotentialWildcard(card));
+  const wildcardState = {
+    used: false,
+    usedCount: 0,
+    usedBy: null,
+    usedAtIndex: null,
+  };
+  const baseIndex = cards.findIndex((card) => !isWildcardCard(card));
   if (baseIndex === -1) {
     return { valid: false, usesWildcard: false };
   }
-  const baseValue = rankValue(cards[baseIndex], aceValue);
+  const baseValue = getRankValue(cards[baseIndex], aceValue);
   if (baseValue === null) {
     return { valid: false, usesWildcard: false };
   }
   for (let i = 0; i < cards.length; i += 1) {
-    const expected = baseValue + direction * (i - baseIndex);
-    if (expected < 1 || expected > 14) {
+    const expectedRank = baseValue + direction * (i - baseIndex);
+    if (expectedRank < 1 || expectedRank > 14) {
       return { valid: false, usesWildcard: false };
     }
-    const card = cards[i];
-    const value = rankValue(card, aceValue);
-    if (value === expected) {
-      continue;
-    }
-    if (wildcardUsed || !isPotentialWildcard(card)) {
+    const matchResult = matchOrConsumeWildcard({
+      card: cards[i],
+      expectedRank,
+      aceValue,
+      wildcardState,
+      sequenceIndex: i,
+    });
+    if (!matchResult.ok) {
       return { valid: false, usesWildcard: false };
     }
-    if (card.rank === "2" && expected === 2) {
-      return { valid: false, usesWildcard: false };
-    }
-    wildcardUsed = true;
   }
-  return { valid: true, usesWildcard: wildcardUsed };
+  return {
+    valid: true,
+    usesWildcard: wildcardState.used,
+    wildcardConsumption: wildcardState.used
+      ? { by: wildcardState.usedBy, index: wildcardState.usedAtIndex }
+      : null,
+  };
 }
 
-function rankValue(card, aceValue) {
+function matchOrConsumeWildcard({ card, expectedRank, aceValue, wildcardState, sequenceIndex }) {
+  const value = getRankValue(card, aceValue);
+  if (value === expectedRank) {
+    return { ok: true, usedWildcardNow: false };
+  }
+  if (!isWildcardCard(card)) {
+    return { ok: false, usedWildcardNow: false };
+  }
+  if (
+    wildcardState.usedCount >= WILDCARD_LIMIT_PER_SEQUENCE ||
+    !canWildcardRepresentExpected(card, expectedRank)
+  ) {
+    return { ok: false, usedWildcardNow: false };
+  }
+
+  wildcardState.used = true;
+  wildcardState.usedCount += 1;
+  wildcardState.usedBy = card.rank;
+  wildcardState.usedAtIndex = sequenceIndex;
+  return { ok: true, usedWildcardNow: true };
+}
+
+function getRankValue(card, aceValue) {
   if (card.rank === "A") {
     return aceValue;
   }
@@ -1640,8 +1780,49 @@ function rankValue(card, aceValue) {
   return Number(card.rank);
 }
 
-function isPotentialWildcard(card) {
+function isWildcardCard(card) {
   return card.rank === "Joker" || card.rank === "2";
+}
+
+function canWildcardRepresentExpected(card, expectedRank) {
+  if (!isWildcardCard(card)) {
+    return false;
+  }
+  // Keep current gameplay behavior: rank "2" cannot substitute as literal rank 2.
+  return !(card.rank === "2" && expectedRank === 2);
+}
+
+function runSequenceValidationDebugChecks() {
+  if (typeof window === "undefined" || !window.__DEBUG_SEQUENCE_VALIDATION) {
+    return;
+  }
+
+  const card = (rank, suit = "♠") => ({ rank, suit });
+  const inspectAttempts = (name, cards) => {
+    const attempts = [
+      { direction: 1, aceValue: 1, label: "asc/A-low" },
+      { direction: 1, aceValue: 14, label: "asc/A-high" },
+      { direction: -1, aceValue: 1, label: "desc/A-low" },
+      { direction: -1, aceValue: 14, label: "desc/A-high" },
+    ];
+    const results = attempts.map((attempt) => ({
+      ...attempt,
+      result: attemptSequence(cards, attempt.direction, attempt.aceValue),
+    }));
+    const passing = results.find((entry) => entry.result.valid);
+    console.log(`[sequence-debug] ${name}`, {
+      cards,
+      passingAttempt: passing ? passing.label : null,
+      wildcardConsumption: passing ? passing.result.wildcardConsumption : null,
+      results,
+    });
+  };
+
+  inspectAttempts("one wildcard consumed", [card("5"), card("Joker"), card("7")]);
+  inspectAttempts("wildcard present but not consumed", [card("A"), card("2"), card("3")]);
+  inspectAttempts("two cannot represent literal two", [card("A"), card("2"), card("4")]);
+  inspectAttempts("ace low/high comparison", [card("Q"), card("K"), card("A")]);
+  inspectAttempts("reported valid case", [card("2", "♣"), card("2", "♠"), card("A", "♠")]);
 }
 
 function dropCard() {
@@ -1655,7 +1836,7 @@ function dropCard() {
   if (availableRows.length === 0) {
     statusEl.textContent = "No space for a new card. Game over.";
     state.gameOver = true;
-    return;
+    return false;
   }
 
   const targetRow = availableRows[0];
@@ -1664,6 +1845,7 @@ function dropCard() {
     .filter((col) => col !== null);
   const targetCol = emptyCols[Math.floor(Math.random() * emptyCols.length)];
   state.grid[targetRow][targetCol] = drawCard();
+  return true;
 }
 
 function clearSequenceSelection() {
@@ -1702,9 +1884,11 @@ async function clearSingleCard(row, col, consumesFreeBomb) {
     state.bombMode = false;
     state.bombTarget = null;
   }
-  dropCard();
+  const spawned = dropCard();
   updateHud();
-  statusEl.textContent = "Bomb used. Card cleared.";
+  if (spawned) {
+    statusEl.textContent = "Bomb used. Card cleared.";
+  }
   renderBoard();
 }
 
@@ -1735,14 +1919,25 @@ async function clearSelectedSequence() {
     state.grid[row][col] = null;
   });
   collapseColumns();
-  dropCard();
+  const spawned = dropCard();
   clearSequenceSelection();
   updateHud({ preserveScore: true });
-  statusEl.textContent = "Sequence cleared!";
-  renderBoard();
-  await animateCardMoves(prevRects);
-  await playScoreAnimation({ cards: animationCards, ...scoreBreakdown });
-  await animateScoreCountUp(oldScore, newScore, scoreEl);
+  if (spawned) {
+    statusEl.textContent = "Sequence cleared!";
+  }
+  if (!spawned) {
+    await renderBoard({ prevRectsOverride: prevRects });
+    return;
+  }
+
+  const scoreAnimationPromise = (async () => {
+    await playScoreAnimation({ cards: animationCards, ...scoreBreakdown });
+    await animateScoreCountUp(oldScore, newScore, scoreEl);
+  })();
+  await renderBoard({
+    prevRectsOverride: prevRects,
+    awaitScorePromise: scoreAnimationPromise,
+  });
 }
 
 function collapseColumns() {
@@ -1877,6 +2072,9 @@ boardEl.addEventListener("pointercancel", handlePointerCancel);
 boardEl.addEventListener("pointerleave", handlePointerCancel);
 
 renderPowerupButtonIcons();
+if (window.__DEBUG_SEQUENCE_VALIDATION) {
+  runSequenceValidationDebugChecks();
+}
 init();
 
 

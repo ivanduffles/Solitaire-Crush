@@ -108,6 +108,9 @@ const menuOverlay = document.getElementById("menuOverlay");
 
 let scoreAnimationActive = false;
 let bombExplosionActive = false;
+const DEBUG_NEW_CARD_ENTER = false;
+let previousRenderCardIds = new Set();
+let hasRenderedBoard = false;
 const SWIPE_THRESHOLD_RATIO = 0.35;
 const LONG_PRESS_MS = 210;
 const LONG_PRESS_MOVE_TOLERANCE_TOUCH = 10;
@@ -703,8 +706,11 @@ function buildJokerCardContent() {
   return wrapper;
 }
 
-function renderBoard() {
-  const prevRects = state.animateMoves ? getCardRects() : null;
+function renderBoard(options = {}) {
+  const { prevRectsOverride = null, awaitScorePromise = null } = options;
+  const prevRects = prevRectsOverride || (state.animateMoves ? getCardRects() : null);
+  const currentCardIds = new Set();
+  const newCardEls = [];
   boardEl.innerHTML = "";
   const selectedSet = new Set(
     state.sequenceSelection.map(({ row, col }) => `${row}-${col}`)
@@ -722,6 +728,11 @@ function renderBoard() {
         cell.textContent = "·";
       } else {
         cell.dataset.cardId = card.id;
+        currentCardIds.add(card.id);
+        if (hasRenderedBoard && !previousRenderCardIds.has(card.id)) {
+          cell.classList.add("card--pre-enter");
+          newCardEls.push(cell);
+        }
         if (ASSET_MODE === "sprite") {
           const assetKey = getCardAssetKey(card);
           if (assetKey) {
@@ -787,11 +798,27 @@ function renderBoard() {
       boardEl.appendChild(cell);
     }
   }
-  if (prevRects) {
-    requestAnimationFrame(() => animateCardMoves(prevRects));
+  if (DEBUG_NEW_CARD_ENTER) {
+    console.log(`[new-card-enter] newCards detected: ${newCardEls.length}`);
   }
+
+  const boardMovePromise = prevRects
+    ? new Promise((resolve) => {
+      requestAnimationFrame(() => {
+        resolve(animateCardMoves(prevRects));
+      });
+    })
+    : Promise.resolve();
+  const scoreWaitPromise = awaitScorePromise || Promise.resolve();
+  const animationSequencePromise = Promise.resolve(scoreWaitPromise)
+    .then(() => boardMovePromise)
+    .then(() => animateNewCardsEnter(newCardEls));
+
+  previousRenderCardIds = currentCardIds;
+  hasRenderedBoard = true;
   updateClearButtonVisibility();
   state.animateMoves = false;
+  return animationSequencePromise;
 }
 
 function handlePointerDown(event) {
@@ -1241,8 +1268,10 @@ function handleDragSwap(targetRow, targetCol) {
   }
   swapCards(startRow, startCol, targetRow, targetCol);
   state.chainMultiplier = 1;
-  dropCard();
-  statusEl.textContent = "Swap complete. Card dropped.";
+  const spawned = dropCard();
+  if (spawned) {
+    statusEl.textContent = "Swap complete. Card dropped.";
+  }
 }
 
 function getSwipeTarget(start, deltaX, deltaY) {
@@ -1270,8 +1299,10 @@ function moveCardToEmpty(startRow, startCol, targetRow, targetCol) {
   state.grid[startRow][startCol] = null;
   shiftColumnDown(startCol, startRow);
   state.chainMultiplier = 1;
-  dropCard();
-  statusEl.textContent = "Move complete. Card dropped.";
+  const spawned = dropCard();
+  if (spawned) {
+    statusEl.textContent = "Move complete. Card dropped.";
+  }
 }
 
 function handleSequenceTap(row, col) {
@@ -1420,8 +1451,10 @@ function handleSwapperTap(row, col) {
   state.swapperActive = false;
   state.swapperSource = null;
   state.chainMultiplier = 1;
-  dropCard();
-  statusEl.textContent = "Swapper used. Card dropped.";
+  const spawned = dropCard();
+  if (spawned) {
+    statusEl.textContent = "Swapper used. Card dropped.";
+  }
   renderBoard();
 }
 
@@ -1449,9 +1482,11 @@ function handleSwapModeTap(row, col) {
   state.swapMode = false;
   state.chainMultiplier = 1;
   state.freeSwapCount = Math.max(0, state.freeSwapCount - 1);
-  dropCard();
+  const spawned = dropCard();
   updateHud();
-  statusEl.textContent = "Swap used. Card dropped.";
+  if (spawned) {
+    statusEl.textContent = "Swap used. Card dropped.";
+  }
   renderBoard();
 }
 
@@ -1513,6 +1548,64 @@ function animateCardMoves(prevRects) {
   return Promise.all(animations).then(() => {
     cards.forEach((cardEl) => {
       cardEl.classList.remove("card--animating");
+    });
+  });
+}
+
+function animateNewCardsEnter(newCardEls = []) {
+  if (!newCardEls.length) {
+    return Promise.resolve();
+  }
+  if (DEBUG_NEW_CARD_ENTER) {
+    console.log(`[new-card-enter] enter animation start (${newCardEls.length})`);
+  }
+
+  newCardEls.forEach((cardEl) => {
+    const nextRect = cardEl.getBoundingClientRect();
+    const startY = -nextRect.height - 24;
+    const deltaY = startY - nextRect.top;
+    if (DEBUG_NEW_CARD_ENTER) {
+      console.log(
+        `[new-card-enter] entering new card ${cardEl.dataset.cardId} col=${cardEl.dataset.col} deltaY=${Math.round(deltaY)}`
+      );
+    }
+    cardEl.style.opacity = "0";
+    cardEl.style.transform = `translate(0px, ${deltaY}px)`;
+  });
+
+  return new Promise((resolveAll) => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const animations = newCardEls.map(
+        (cardEl) => new Promise((resolve) => {
+          cardEl.classList.add("card--entering");
+          cardEl.classList.remove("card--pre-enter");
+          cardEl.style.transform = "";
+          cardEl.style.opacity = "1";
+          let settled = false;
+          const cleanup = () => {
+            if (settled) {
+              return;
+            }
+            settled = true;
+            cardEl.classList.remove("card--entering");
+            cardEl.classList.remove("card--pre-enter");
+            cardEl.style.removeProperty("transform");
+            cardEl.style.removeProperty("opacity");
+            resolve();
+          };
+          cardEl.addEventListener("transitionend", cleanup, { once: true });
+          window.setTimeout(cleanup, 620);
+        })
+      );
+
+        Promise.all(animations).then(() => {
+          if (DEBUG_NEW_CARD_ENTER) {
+            console.log("[new-card-enter] enter animation end");
+          }
+          resolveAll();
+        });
+      });
     });
   });
 }
@@ -1743,7 +1836,7 @@ function dropCard() {
   if (availableRows.length === 0) {
     statusEl.textContent = "No space for a new card. Game over.";
     state.gameOver = true;
-    return;
+    return false;
   }
 
   const targetRow = availableRows[0];
@@ -1752,6 +1845,7 @@ function dropCard() {
     .filter((col) => col !== null);
   const targetCol = emptyCols[Math.floor(Math.random() * emptyCols.length)];
   state.grid[targetRow][targetCol] = drawCard();
+  return true;
 }
 
 function clearSequenceSelection() {
@@ -1790,9 +1884,11 @@ async function clearSingleCard(row, col, consumesFreeBomb) {
     state.bombMode = false;
     state.bombTarget = null;
   }
-  dropCard();
+  const spawned = dropCard();
   updateHud();
-  statusEl.textContent = "Bomb used. Card cleared.";
+  if (spawned) {
+    statusEl.textContent = "Bomb used. Card cleared.";
+  }
   renderBoard();
 }
 
@@ -1823,14 +1919,25 @@ async function clearSelectedSequence() {
     state.grid[row][col] = null;
   });
   collapseColumns();
-  dropCard();
+  const spawned = dropCard();
   clearSequenceSelection();
   updateHud({ preserveScore: true });
-  statusEl.textContent = "Sequence cleared!";
-  renderBoard();
-  await animateCardMoves(prevRects);
-  await playScoreAnimation({ cards: animationCards, ...scoreBreakdown });
-  await animateScoreCountUp(oldScore, newScore, scoreEl);
+  if (spawned) {
+    statusEl.textContent = "Sequence cleared!";
+  }
+  if (!spawned) {
+    await renderBoard({ prevRectsOverride: prevRects });
+    return;
+  }
+
+  const scoreAnimationPromise = (async () => {
+    await playScoreAnimation({ cards: animationCards, ...scoreBreakdown });
+    await animateScoreCountUp(oldScore, newScore, scoreEl);
+  })();
+  await renderBoard({
+    prevRectsOverride: prevRects,
+    awaitScorePromise: scoreAnimationPromise,
+  });
 }
 
 function collapseColumns() {
