@@ -323,20 +323,24 @@ function importSnapshot(snapshot, options = {}) {
       ? removedCardEls[0].getBoundingClientRect()
       : null;
 
-  return Promise.resolve(renderBoard({
+  const renderHistoryBoard = () => renderBoard({
     prevRectsOverride: previousRects,
     historyTransition,
     historyReason,
-  }))
+  });
+
+  const redoBombPrelude = redoBombExplosionRect
+    ? playBombExplosion({
+      centerRect: redoBombExplosionRect,
+      affectedCardEls: removedCardEls,
+    })
+    : Promise.resolve();
+
+  return Promise.resolve(redoBombPrelude)
+    .then(() => renderHistoryBoard())
     .then(() => {
       if (historyTransition === "undo") {
         return animateUndoRemovedCards({ cardEls: removedCardEls, reason: historyReason });
-      }
-      return undefined;
-    })
-    .then(() => {
-      if (redoBombExplosionRect) {
-        return playBombExplosion({ centerRect: redoBombExplosionRect, affectedCardEls: [] });
       }
       return undefined;
     })
