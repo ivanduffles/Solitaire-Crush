@@ -161,12 +161,18 @@ body {
 }
 
 .hud__button--history {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
   min-width: 44px;
   min-height: 44px;
   padding: 0;
   font-size: 22px;
   line-height: 1;
   background: transparent;
+  touch-action: manipulation;
 }
 
 .hud__button:disabled {
@@ -443,6 +449,8 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  position: relative;
+  z-index: 2;
 }
 
 .status__middle {
