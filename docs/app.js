@@ -139,9 +139,24 @@ function debugUndoLog(message, payload = {}) {
   console.log(`[undo-debug] ${message}`, payload);
 }
 
+function debugScoreAnimLog(message, payload = {}) {
+  if (!DEBUG_SCORE_ANIM) {
+    return;
+  }
+  console.log(`[SCORE_ANIM] ${message}`, payload);
+}
+
+function triggerScoreAnimation(source, payload) {
+  debugScoreAnimLog(`called from ${source}`, { stack: new Error().stack });
+  return playScoreAnimation(payload);
+}
+
 let scoreAnimationActive = false;
+let scoreAnimInFlight = false;
+let scoreAnimRunId = 0;
 let bombExplosionActive = false;
 const DEBUG_NEW_CARD_ENTER = false;
+const DEBUG_SCORE_ANIM = true;
 const MAX_HISTORY = 50;
 const undoStack = [];
 const redoStack = [];
@@ -425,6 +440,7 @@ function cancelAnimationsAndUnlockInput() {
   state.dragSelecting = false;
   state.doubleTapState = null;
   state.animateMoves = false;
+  scoreAnimInFlight = false;
   scoreAnimationActive = false;
   bombExplosionActive = false;
   boardEl.classList.remove("board--drag-selecting");
@@ -713,9 +729,17 @@ async function playScoreAnimation({
   rawPoints,
   finalPoints,
 }) {
-  if (!cards?.length || scoreAnimationActive) {
+  if (!cards?.length) {
     return;
   }
+
+  if (scoreAnimInFlight) {
+    debugScoreAnimLog("already running; ignoring trigger", { stack: new Error().stack });
+    return;
+  }
+
+  const id = ++scoreAnimRunId;
+  debugScoreAnimLog(`start id=${id}`, { stack: new Error().stack });
 
   const snapshots = cards
     .map((entry) => {
@@ -810,6 +834,7 @@ async function playScoreAnimation({
 
   // Timeline: 300ms cards to stage -> 150ms pause -> text line enters (180ms, 90ms stagger)
   // -> 300ms hold -> 300ms group exit + 600ms overlay fade.
+  scoreAnimInFlight = true;
   scoreAnimationActive = true;
   document.body.append(overlay, stage);
 
@@ -889,8 +914,10 @@ async function playScoreAnimation({
       }),
     ]);
   } finally {
+    debugScoreAnimLog(`end id=${id}`);
     stage.remove();
     overlay.remove();
+    scoreAnimInFlight = false;
     scoreAnimationActive = false;
   }
 }
@@ -2350,7 +2377,10 @@ async function clearSelectedSequence() {
   }
 
   const scoreAnimationPromise = (async () => {
-    await playScoreAnimation({ cards: animationCards, ...scoreBreakdown });
+    await triggerScoreAnimation("clearSelectedSequence:after-clear-pipeline", {
+      cards: animationCards,
+      ...scoreBreakdown,
+    });
     await animateScoreCountUp(oldScore, newScore, scoreEl);
   })();
   await renderBoard({
@@ -2358,12 +2388,6 @@ async function clearSelectedSequence() {
     awaitScorePromise: scoreAnimationPromise,
   });
   renderBoard();
-  if (!spawned) {
-    return;
-  }
-  await animateCardMoves(prevRects);
-  await playScoreAnimation({ cards: animationCards, ...scoreBreakdown });
-  await animateScoreCountUp(oldScore, newScore, scoreEl);
 }
 
 function collapseColumns() {
@@ -2407,6 +2431,7 @@ function resetRuntimeState() {
     sequenceSelection: [],
   });
   clearLongPressTimer();
+  scoreAnimInFlight = false;
   scoreAnimationActive = false;
   bombExplosionActive = false;
 }
