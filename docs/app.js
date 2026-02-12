@@ -35,17 +35,13 @@ const SWAP_ICON_SVG = `
 `;
 
 const BOMB_ICON_SVG = `
-  <svg viewBox="0 0 100 100" aria-hidden="true" focusable="false">
-    <g clip-path="url(#clip0_308_16903)">
-      <path d="M59.305 13.2151C58.7277 9.93868 60.7294 6.74542 63.9322 5.83911L64.2562 5.75578L64.5843 5.68928C67.9705 5.09273 71.2677 7.2517 72.0441 10.6414C72.7281 13.6283 73.3853 16.9268 73.1842 20.3777L73.1847 20.3786C73.0601 22.5161 72.6145 24.5905 71.8068 26.66C74.5286 29.0034 76.799 31.8902 77.8578 35.3281C78.3543 36.9404 78.0853 38.5283 77.6891 39.7702C77.2843 41.0388 76.6428 42.2695 76.0056 43.3426C75.3622 44.426 74.6458 45.476 74.0477 46.3538C73.8452 46.651 73.663 46.923 73.4973 47.17C75.8775 52.1499 76.93 57.6188 76.7113 63.0961C76.7109 63.1063 76.7106 63.1171 76.7101 63.1273C76.3372 70.5582 73.4208 77.552 68.6571 83.1498C68.6502 83.1578 68.6432 83.1662 68.6362 83.1742C63.5886 88.9799 56.7041 92.7237 49.2337 94.0797C49.2224 94.0818 49.2112 94.0838 49.1999 94.0857C41.6197 95.3705 33.9132 93.9017 27.2805 90.2041C27.2713 90.199 27.2624 90.1934 27.2533 90.1882C20.5798 86.3731 15.552 80.3505 12.7709 73.2837L12.7595 73.2542C10.0331 66.103 9.87136 58.2274 12.3001 50.9702C14.729 43.7127 19.5993 37.5207 26.0813 33.4512C30.4762 30.6921 35.4278 29.0261 40.5264 28.5393C40.6582 28.259 40.8051 27.9503 40.964 27.6078C41.4193 26.6267 41.9676 25.4557 42.5959 24.3348C43.2172 23.2266 43.9919 22.029 44.9544 21.037C45.9143 20.0477 47.2532 19.0659 49.0026 18.7967L49.4516 18.7326C53.056 18.2572 56.541 18.7531 60.1688 20.0472C60.1847 19.9045 60.1988 19.7629 60.2071 19.6214C60.2917 18.1681 60.0344 16.4384 59.3715 13.5432L59.305 13.2151ZM39.9604 41.7347C37.505 42.1964 35.139 43.1144 32.993 44.4617C29.0585 46.9319 26.102 50.6901 24.6275 55.0954C23.1532 59.5006 23.2523 64.282 24.9075 68.6233C26.5628 72.9643 29.6716 76.5974 33.7044 78.9029C37.7377 81.2085 42.4468 82.0446 47.0274 81.2682C51.6074 80.4917 55.7767 78.1509 58.8248 74.6452C61.8729 71.1394 63.6111 66.6834 63.7432 62.0391C63.8118 59.6265 63.4432 57.2401 62.6751 54.9879C62.3658 54.6299 61.5664 53.787 59.8806 52.4426C56.1836 51.3765 52.9695 50.1138 50.0272 48.4033C47.0847 46.6927 44.6123 44.6495 42.2652 42.215C40.8422 41.7685 40.131 41.7351 39.9604 41.7347Z" fill="#8E0002" stroke="white" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
-      <path d="M33.2092 50.2679C29.7059 52.6728 27.911 57.6 29.1328 62.6915" stroke="#8E0002" stroke-width="6" stroke-linecap="round"/>
-      <path d="M33.2109 71.5433C33.623 72.0718 34.4791 73.2474 35.0956 73.7021" stroke="#8E0002" stroke-width="6" stroke-linecap="round"/>
-    </g>
-    <defs>
-      <clipPath id="clip0_308_16903">
-        <rect width="100" height="100" fill="white"/>
-      </clipPath>
-    </defs>
+  <svg width="78" height="100" viewBox="0 0 78 100" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
+    <path d="M58.4882 4.23208C63.1097 3.04684 67.7419 5.16911 68.9708 9.97139C69.6602 12.9823 70.4096 16.6422 70.1817 20.5531C70.0781 22.3296 69.3528 26.3952 68.8496 28.1109C72.7527 31.99 75.2756 34.6353 75.2756 40.5747C74.4903 43.0359 71.8451 45.3773 70.1817 46.7495C72.2783 51.7522 73.9259 57.8486 73.7116 63.2159C73.7107 63.2362 73.7105 63.2565 73.7095 63.2768C73.302 71.4014 70.1145 79.0189 64.9448 85.0938C64.9311 85.11 64.917 85.1267 64.9031 85.1427C59.3835 91.4912 51.8762 95.5603 43.7723 97.0314C43.7495 97.0355 43.7267 97.0399 43.7039 97.0438C35.4159 98.4486 27.0205 96.8373 19.8225 92.8245C19.8037 92.814 19.7853 92.803 19.7667 92.7924C12.4707 88.6214 7.00053 82.0521 3.98209 74.3823L3.9588 74.3224C0.985163 66.5226 0.808445 57.9333 3.45728 50.0182C6.10651 42.1029 11.4191 35.3498 18.489 30.9113C23.1165 28.0531 28.6461 27.7958 33.8922 27.0387C35.031 24.6106 36.293 22.1688 38.1774 20.2266C41.8248 16.4675 47.3508 16.3513 52.2102 17.2939C51.1312 11.8343 52.2885 5.98715 58.4882 4.23208Z" fill="white"/>
+    <circle cx="37.3086" cy="62.6914" r="25.043" fill="#6D7883"/>
+    <path d="M66.4901 40.4203C63.6602 45.3218 55.176 47.9633 49.0459 44.424C42.9157 40.8848 40.3254 40.7008 43.4289 29.8862C44.2532 23.5453 47.7366 22.0421 58.4902 28.2507C64.6203 31.7899 69.3199 35.5188 66.4901 40.4203Z" fill="#FFB751"/>
+    <path fill-rule="evenodd" clip-rule="evenodd" d="M57.2013 13.9587C56.7701 12.0747 57.9472 10.1972 59.8312 9.76567C61.7153 9.33431 63.5932 10.5123 64.0247 12.3963C64.7032 15.3595 65.2692 18.2976 65.0949 21.289C64.9499 23.7766 64.303 26.1721 63.0127 28.6435C66.2804 31.011 69.4386 34.2307 70.6634 37.803C71.2868 39.6212 65.0949 43.6627 63.0127 46.3417C67.6709 52.1291 67.9346 57.4205 67.7127 62.9763C67.3747 69.7138 64.7289 76.0847 60.3711 81.2056C55.7953 86.4686 49.5336 89.8869 42.6967 91.1279C35.8244 92.2928 28.8075 90.966 22.7401 87.5835C16.6893 84.1244 12.1052 78.6488 9.56141 72.1851C7.08231 65.6826 6.93514 58.5217 9.14366 51.9224C11.3524 45.3229 15.7808 39.6927 21.6749 35.9924C26.1363 33.1915 35.1329 31.4049 40.3904 32.6372C42.2894 28.0048 42.3227 23.1614 44.3643 22.8474C48.4073 22.2257 52.3644 23.0102 56.9434 25.1428C57.7097 23.5984 58.0284 22.2346 58.1073 20.8815C58.2189 18.9659 57.8685 16.8725 57.2013 13.9587ZM33.5026 38.7677C30.6461 39.292 27.8923 40.3541 25.3965 41.9209C20.8742 44.7602 17.4758 49.0798 15.7811 54.1435C14.0864 59.2072 14.2008 64.702 16.1031 69.6915C18.0055 74.6808 21.5784 78.8569 26.2142 81.507C30.8501 84.1572 36.2624 85.1178 41.5273 84.2254C46.7919 83.3329 51.584 80.6425 55.0876 76.6129C58.5912 72.583 60.5886 67.4625 60.7404 62.1247C60.8242 59.1792 60.1396 55.6595 59.4299 53.4693C58.7202 51.2791 58.1073 50.2357 57.2013 48.8882C55.2762 49.7178 51.0452 48.4428 47.0821 46.3417C43.119 44.2405 40.48 40.5202 39.8993 38.7677C36.716 37.6476 33.5176 38.7642 33.5026 38.7677ZM43.376 35.7795C44.3385 38.3021 46.5002 41.6212 48.7458 42.9267C51.1031 44.2972 54.1545 45.0523 58.1073 45.4589L64.0247 40.69C60.7135 40.69 55.9818 39.9524 52.3273 37.803C48.6729 35.6536 46.5226 31.9875 44.9597 29.1946L43.376 35.7795ZM47.6654 26.4027C48.3722 27.9406 49.477 31.8787 54.4093 34.7796C59.3416 37.6806 63.0127 37.0778 65.6611 37.0778C63.6972 33.3975 62.4719 32.8584 61.4917 32.1232C60.608 33.0993 58.9034 33.8147 56.9434 33.103C54.5349 32.2285 53.8059 29.9125 54.4093 28.6435C52.8659 27.6633 52.0858 26.5894 47.6654 26.4027Z" fill="#2F3F4C"/>
+    <path d="M27.2092 50.2681C23.7059 52.6729 21.911 57.6001 23.1328 62.6916" stroke="white" stroke-width="6" stroke-linecap="round"/>
+    <path d="M27.2109 71.5435C27.623 72.0719 28.4791 73.2475 29.0956 73.7022" stroke="white" stroke-width="6" stroke-linecap="round"/>
   </svg>
 `;
 
@@ -63,7 +59,7 @@ const JOKER_HAT_SVG = `
   </svg>
 `;
 
-const state = {
+const INITIAL_STATE = {
   grid: [],
   deck: [],
   freeSwapCount: 3,
@@ -91,6 +87,13 @@ const state = {
   animateMoves: false,
 };
 
+const state = {
+  ...INITIAL_STATE,
+  grid: [],
+  deck: [],
+  sequenceSelection: [],
+};
+
 const boardEl = document.getElementById("board");
 const scoreEl = document.getElementById("scoreValue");
 const swapCountEl = document.getElementById("freeSwapCount");
@@ -105,6 +108,23 @@ const menuBtn = document.getElementById("menuBtn");
 const gameMenuModal = document.getElementById("gameMenuModal");
 const closeMenuBtn = document.getElementById("closeMenuBtn");
 const menuOverlay = document.getElementById("menuOverlay");
+const gameOverOverlayEl = document.getElementById("gameOverOverlay");
+const playAgainButtonEl = document.getElementById("playAgainButton");
+
+function isInputLocked() {
+  return state.gameOver || !gameOverOverlayEl?.hidden;
+}
+
+function isDebugGameOverEnabled() {
+  return typeof window !== "undefined" && window.__DEBUG_GAMEOVER;
+}
+
+function debugGameOverLog(message, payload = {}) {
+  if (!isDebugGameOverEnabled()) {
+    return;
+  }
+  console.log(`[gameover-debug] ${message}`, payload);
+}
 
 let scoreAnimationActive = false;
 let bombExplosionActive = false;
@@ -632,6 +652,10 @@ function initGrid() {
   );
   for (let row = GRID_SIZE - 1; row >= GRID_SIZE - INITIAL_ROWS; row -= 1) {
     for (let col = 0; col < GRID_SIZE; col += 1) {
+      if (!canSpawnNewCard()) {
+        triggerGameOver("initial-deal-no-slot");
+        return;
+      }
       state.grid[row][col] = drawCard();
     }
   }
@@ -822,7 +846,7 @@ function renderBoard(options = {}) {
 }
 
 function handlePointerDown(event) {
-  if (scoreAnimationActive || state.gameOver) {
+  if (scoreAnimationActive || isInputLocked()) {
     return;
   }
   event.preventDefault();
@@ -859,7 +883,7 @@ function handlePointerDown(event) {
     !(state.bombMode || state.swapMode || state.swapperActive || state.pendingSwap);
   if (canLongPressSelect) {
     state.longPressTimer = window.setTimeout(() => {
-      if (!state.dragState || state.dragState.longPressCancelled || scoreAnimationActive || state.gameOver) {
+      if (!state.dragState || state.dragState.longPressCancelled || scoreAnimationActive || isInputLocked()) {
         return;
       }
       startDragSelection();
@@ -872,7 +896,7 @@ function handlePointerDown(event) {
 }
 
 function handlePointerEnter(event) {
-  if (scoreAnimationActive || bombExplosionActive || !state.dragState || state.gameOver) {
+  if (scoreAnimationActive || bombExplosionActive || !state.dragState || isInputLocked()) {
     return;
   }
   if (state.swapMode || state.bombMode || state.pendingSwap) {
@@ -888,7 +912,7 @@ function handlePointerEnter(event) {
 }
 
 function handlePointerMove(event) {
-  if (scoreAnimationActive || bombExplosionActive || !state.dragState || state.gameOver) {
+  if (scoreAnimationActive || bombExplosionActive || !state.dragState || isInputLocked()) {
     return;
   }
   if (state.swapMode || state.bombMode || state.pendingSwap) {
@@ -959,7 +983,7 @@ function handlePointerCancel() {
 }
 
 async function handlePointerUp(event) {
-  if (scoreAnimationActive || bombExplosionActive || !state.dragState || state.gameOver) {
+  if (scoreAnimationActive || bombExplosionActive || !state.dragState || isInputLocked()) {
     return;
   }
   const { moved } = state.dragState;
@@ -1268,8 +1292,9 @@ function handleDragSwap(targetRow, targetCol) {
   }
   swapCards(startRow, startCol, targetRow, targetCol);
   state.chainMultiplier = 1;
-  dropCard();
-  statusEl.textContent = "Swap complete. Card dropped.";
+  if (spawnCardOrGameOver("drag-swap")) {
+    statusEl.textContent = "Swap complete. Card dropped.";
+  }
 }
 
 function getSwipeTarget(start, deltaX, deltaY) {
@@ -1297,8 +1322,9 @@ function moveCardToEmpty(startRow, startCol, targetRow, targetCol) {
   state.grid[startRow][startCol] = null;
   shiftColumnDown(startCol, startRow);
   state.chainMultiplier = 1;
-  dropCard();
-  statusEl.textContent = "Move complete. Card dropped.";
+  if (spawnCardOrGameOver("move-to-empty")) {
+    statusEl.textContent = "Move complete. Card dropped.";
+  }
 }
 
 function handleSequenceTap(row, col) {
@@ -1447,8 +1473,9 @@ function handleSwapperTap(row, col) {
   state.swapperActive = false;
   state.swapperSource = null;
   state.chainMultiplier = 1;
-  dropCard();
-  statusEl.textContent = "Swapper used. Card dropped.";
+  if (spawnCardOrGameOver("swapper")) {
+    statusEl.textContent = "Swapper used. Card dropped.";
+  }
   renderBoard();
 }
 
@@ -1476,9 +1503,11 @@ function handleSwapModeTap(row, col) {
   state.swapMode = false;
   state.chainMultiplier = 1;
   state.freeSwapCount = Math.max(0, state.freeSwapCount - 1);
-  dropCard();
+  const spawned = spawnCardOrGameOver("free-swap");
   updateHud();
-  statusEl.textContent = "Swap used. Card dropped.";
+  if (spawned) {
+    statusEl.textContent = "Swap used. Card dropped.";
+  }
   renderBoard();
 }
 
@@ -1753,6 +1782,30 @@ function matchOrConsumeWildcard({ card, expectedRank, aceValue, wildcardState, s
   return { ok: true, usedWildcardNow: true };
 }
 
+}
+
+function matchOrConsumeWildcard({ card, expectedRank, aceValue, wildcardState, sequenceIndex }) {
+  const value = getRankValue(card, aceValue);
+  if (value === expectedRank) {
+    return { ok: true, usedWildcardNow: false };
+  }
+  if (!isWildcardCard(card)) {
+    return { ok: false, usedWildcardNow: false };
+  }
+  if (
+    wildcardState.usedCount >= WILDCARD_LIMIT_PER_SEQUENCE ||
+    !canWildcardRepresentExpected(card, expectedRank)
+  ) {
+    return { ok: false, usedWildcardNow: false };
+  }
+
+  wildcardState.used = true;
+  wildcardState.usedCount += 1;
+  wildcardState.usedBy = card.rank;
+  wildcardState.usedAtIndex = sequenceIndex;
+  return { ok: true, usedWildcardNow: true };
+}
+
 function getRankValue(card, aceValue) {
   if (card.rank === "A") {
     return aceValue;
@@ -1818,6 +1871,9 @@ function runSequenceValidationDebugChecks() {
 }
 
 function dropCard() {
+function getEligibleSpawnSlots() {
+  // Lose condition source of truth: if there is no eligible spawn slot,
+  // the game is over because no new card can enter the grid.
   const availableRows = [];
   for (let row = GRID_SIZE - 1; row >= 0; row -= 1) {
     const hasEmpty = state.grid[row].some((cell) => cell === null);
@@ -1837,6 +1893,60 @@ function dropCard() {
     .filter((col) => col !== null);
   const targetCol = emptyCols[Math.floor(Math.random() * emptyCols.length)];
   state.grid[targetRow][targetCol] = drawCard();
+    return [];
+  }
+
+  const targetRow = availableRows[0];
+  return state.grid[targetRow]
+    .map((cell, col) => (cell === null ? { row: targetRow, col } : null))
+    .filter(Boolean);
+}
+
+function canSpawnNewCard() {
+  return getEligibleSpawnSlots().length > 0;
+}
+
+function showGameOverOverlay() {
+  if (!gameOverOverlayEl) {
+    return;
+  }
+  gameOverOverlayEl.hidden = false;
+  playAgainButtonEl?.focus();
+}
+
+function hideGameOverOverlay() {
+  if (!gameOverOverlayEl) {
+    return;
+  }
+  gameOverOverlayEl.hidden = true;
+}
+
+function triggerGameOver(reason = "spawn-blocked") {
+  if (state.gameOver) {
+    return;
+  }
+  state.gameOver = true;
+  clearLongPressTimer();
+  state.dragState = null;
+  state.dragSelecting = false;
+  statusEl.textContent = "No space for a new card. Game over.";
+  setMenuOpen(false);
+  debugGameOverLog("game over triggered", { reason });
+  showGameOverOverlay();
+}
+
+function spawnCardOrGameOver(context = "drop") {
+  debugGameOverLog("spawn attempt", { context });
+  const canSpawn = canSpawnNewCard();
+  debugGameOverLog("canSpawnNewCard() result", { context, canSpawn });
+  if (!canSpawn) {
+    triggerGameOver(`no-slot:${context}`);
+    return false;
+  }
+
+  const slots = getEligibleSpawnSlots();
+  const target = slots[Math.floor(Math.random() * slots.length)];
+  state.grid[target.row][target.col] = drawCard();
   return true;
 }
 
@@ -1876,9 +1986,11 @@ async function clearSingleCard(row, col, consumesFreeBomb) {
     state.bombMode = false;
     state.bombTarget = null;
   }
-  dropCard();
+  const spawned = spawnCardOrGameOver("bomb-clear");
   updateHud();
-  statusEl.textContent = "Bomb used. Card cleared.";
+  if (spawned) {
+    statusEl.textContent = "Bomb used. Card cleared.";
+  }
   renderBoard();
 }
 
@@ -1910,6 +2022,7 @@ async function clearSelectedSequence() {
   });
   collapseColumns();
   const spawned = dropCard();
+  const spawned = spawnCardOrGameOver("sequence-clear");
   clearSequenceSelection();
   updateHud({ preserveScore: true });
   if (spawned) {
@@ -1928,6 +2041,13 @@ async function clearSelectedSequence() {
     prevRectsOverride: prevRects,
     awaitScorePromise: scoreAnimationPromise,
   });
+  renderBoard();
+  if (!spawned) {
+    return;
+  }
+  await animateCardMoves(prevRects);
+  await playScoreAnimation({ cards: animationCards, ...scoreBreakdown });
+  await animateScoreCountUp(oldScore, newScore, scoreEl);
 }
 
 function collapseColumns() {
@@ -1963,11 +2083,44 @@ function applyScore(length, usesWildcard) {
   };
 }
 
+function resetRuntimeState() {
+  Object.assign(state, {
+    ...INITIAL_STATE,
+    grid: [],
+    deck: [],
+    sequenceSelection: [],
+  });
+  clearLongPressTimer();
+  scoreAnimationActive = false;
+  bombExplosionActive = false;
+}
+
 function init() {
+  resetRuntimeState();
   state.deck = buildDeck();
   initGrid();
+  hideGameOverOverlay();
   updateHud();
+  statusEl.textContent = "Tap adjacent cards to swap. Tap again to deselect.";
   renderBoard();
+}
+
+function restartGame() {
+  debugGameOverLog("restart requested");
+  init();
+}
+
+function debugFillSpawnSlotsAndTriggerGameOver() {
+  // Dev helper to reproduce the lose condition deterministically.
+  for (let row = 0; row < GRID_SIZE; row += 1) {
+    for (let col = 0; col < GRID_SIZE; col += 1) {
+      if (!state.grid[row][col]) {
+        state.grid[row][col] = drawCard();
+      }
+    }
+  }
+  renderBoard();
+  spawnCardOrGameOver("debug-fill-all-slots");
 }
 
 function renderPowerupButtonIcons() {
@@ -2003,8 +2156,15 @@ function setMenuOpen(isOpen) {
   gameMenuModal.hidden = !isOpen;
 }
 
-function handleMenuKeydown(event) {
-  if (event.key !== "Escape" || gameMenuModal?.hidden) {
+function handleGlobalKeydown(event) {
+  if (event.key !== "Escape") {
+    return;
+  }
+  if (!gameOverOverlayEl?.hidden) {
+    restartGame();
+    return;
+  }
+  if (gameMenuModal?.hidden) {
     return;
   }
   setMenuOpen(false);
@@ -2012,7 +2172,7 @@ function handleMenuKeydown(event) {
 }
 
 freeSwapButton.addEventListener("click", () => {
-  if (scoreAnimationActive || bombExplosionActive || state.gameOver || state.freeSwapCount <= 0) {
+  if (scoreAnimationActive || bombExplosionActive || isInputLocked() || state.freeSwapCount <= 0) {
     return;
   }
   state.swapMode = !state.swapMode;
@@ -2030,7 +2190,7 @@ freeSwapButton.addEventListener("click", () => {
 });
 
 clearSequenceButton?.addEventListener("click", () => {
-  if (scoreAnimationActive || bombExplosionActive || !state.sequenceValid || state.sequenceSelection.length < 3) {
+  if (scoreAnimationActive || bombExplosionActive || isInputLocked() || !state.sequenceValid || state.sequenceSelection.length < 3) {
     return;
   }
   state.lastTap = null;
@@ -2038,7 +2198,7 @@ clearSequenceButton?.addEventListener("click", () => {
 });
 
 freeBombButton.addEventListener("click", () => {
-  if (scoreAnimationActive || bombExplosionActive || state.gameOver || state.freeBombCount <= 0) {
+  if (scoreAnimationActive || bombExplosionActive || isInputLocked() || state.freeBombCount <= 0) {
     return;
   }
   state.bombMode = !state.bombMode;
@@ -2069,6 +2229,9 @@ init();
 
 
 menuBtn?.addEventListener("click", () => {
+  if (isInputLocked()) {
+    return;
+  }
   setMenuOpen(true);
 });
 
@@ -2082,4 +2245,9 @@ menuOverlay?.addEventListener("click", () => {
   menuBtn?.focus();
 });
 
-document.addEventListener("keydown", handleMenuKeydown);
+playAgainButtonEl?.addEventListener("click", restartGame);
+
+window.restartGame = restartGame;
+window.debugFillSpawnSlotsAndTriggerGameOver = debugFillSpawnSlotsAndTriggerGameOver;
+
+document.addEventListener("keydown", handleGlobalKeydown);
