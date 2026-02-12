@@ -207,8 +207,8 @@ function getCardElementMap() {
   return map;
 }
 
-function animateUndoRemovedCards({ cardEls = [], reason = "" }) {
-  if (!cardEls.length) {
+function animateUndoRemovedCards({ cardSnapshots = [], reason = "" }) {
+  if (!cardSnapshots.length) {
     return Promise.resolve();
   }
   const layer = document.createElement("div");
@@ -217,10 +217,9 @@ function animateUndoRemovedCards({ cardEls = [], reason = "" }) {
   document.body.appendChild(layer);
   const isBombUndo = reason.includes("bomb");
 
-  const animations = cardEls.map((sourceEl) => {
-    const rect = sourceEl.getBoundingClientRect();
-    const ghost = sourceEl.cloneNode(true);
-    ghost.classList.remove("card--animating", "card--entering", "card--pre-enter");
+  const animations = cardSnapshots.map((snapshot) => {
+    const { rect, clone } = snapshot;
+    const ghost = clone.cloneNode(true);
     ghost.style.position = "fixed";
     ghost.style.left = `${rect.left}px`;
     ghost.style.top = `${rect.top}px`;
@@ -374,9 +373,16 @@ function importSnapshot(snapshot, options = {}) {
       .map(([, el]) => el)
     : [];
 
+  const removedCardSnapshots = removedCardEls.map((cardEl) => {
+    const rect = cardEl.getBoundingClientRect();
+    const clone = cardEl.cloneNode(true);
+    clone.classList.remove("card--animating", "card--entering", "card--pre-enter");
+    return { rect, clone };
+  });
+
   const redoBombExplosionRect =
-    historyTransition === "redo" && historyReason.includes("bomb") && removedCardEls.length
-      ? removedCardEls[0].getBoundingClientRect()
+    historyTransition === "redo" && historyReason.includes("bomb") && removedCardSnapshots.length
+      ? removedCardSnapshots[0].rect
       : null;
 
   const renderHistoryBoard = () => renderBoard({
@@ -396,7 +402,7 @@ function importSnapshot(snapshot, options = {}) {
     .then(() => renderHistoryBoard())
     .then(() => {
       if (historyTransition === "undo") {
-        return animateUndoRemovedCards({ cardEls: removedCardEls, reason: historyReason });
+        return animateUndoRemovedCards({ cardSnapshots: removedCardSnapshots, reason: historyReason });
       }
       return undefined;
     })
