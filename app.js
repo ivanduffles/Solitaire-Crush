@@ -126,6 +126,17 @@ function debugGameOverLog(message, payload = {}) {
   console.log(`[gameover-debug] ${message}`, payload);
 }
 
+function isDebugMoveCommitEnabled() {
+  return typeof window !== "undefined" && window.__DEBUG_MOVE_COMMIT;
+}
+
+function debugMoveCommitLog(message, payload = {}) {
+  if (!isDebugMoveCommitEnabled()) {
+    return;
+  }
+  console.log(`[move-commit-debug] ${message}`, payload);
+}
+
 let scoreAnimationActive = false;
 let bombExplosionActive = false;
 const DEBUG_NEW_CARD_ENTER = false;
@@ -1284,17 +1295,70 @@ function handleDragSwap(targetRow, targetCol) {
     statusEl.textContent = "Cards must be orthogonally adjacent.";
     return;
   }
-  state.animateMoves = true;
   clearSequenceSelection();
+
+  // Signature-based move commits prevent false positives where a tentative drag
+  // (like pushing into an empty slot above) settles back to the same board.
+  const preSignature = getGridSignature(state.grid);
+
   if (!state.grid[targetRow][targetCol]) {
     moveCardToEmpty(startRow, startCol, targetRow, targetCol);
+    const postSignature = getGridSignature(state.grid);
+    const committed = commitMoveIfChanged(preSignature, postSignature, {
+      action: "move-to-empty",
+      from: { row: startRow, col: startCol },
+      to: { row: targetRow, col: targetCol },
+    });
+    if (!committed) {
+      state.animateMoves = false;
+      statusEl.textContent = "Invalid move.";
+      return;
+    }
+
+    state.animateMoves = true;
+    state.chainMultiplier = 1;
+    if (spawnCardOrGameOver("move-to-empty")) {
+      statusEl.textContent = "Move complete. Card dropped.";
+    }
     return;
   }
+
   swapCards(startRow, startCol, targetRow, targetCol);
+  const postSignature = getGridSignature(state.grid);
+  const committed = commitMoveIfChanged(preSignature, postSignature, {
+    action: "drag-swap",
+    from: { row: startRow, col: startCol },
+    to: { row: targetRow, col: targetCol },
+  });
+  if (!committed) {
+    state.animateMoves = false;
+    statusEl.textContent = "Invalid move.";
+    return;
+  }
+
+  state.animateMoves = true;
   state.chainMultiplier = 1;
   if (spawnCardOrGameOver("drag-swap")) {
     statusEl.textContent = "Swap complete. Card dropped.";
   }
+}
+
+function getGridSignature(grid) {
+  return grid
+    .map((row) => row.map((cell) => (cell ? cell.id : ".")).join("|"))
+    .join("/");
+}
+
+function commitMoveIfChanged(preSignature, postSignature, metadata = {}) {
+  const committed = preSignature !== postSignature;
+  debugMoveCommitLog("move commit check", {
+    ...metadata,
+    preSignature,
+    postSignature,
+    signaturesEqual: preSignature === postSignature,
+    committed,
+  });
+  return committed;
 }
 
 function getSwipeTarget(start, deltaX, deltaY) {
@@ -1321,10 +1385,6 @@ function moveCardToEmpty(startRow, startCol, targetRow, targetCol) {
   state.grid[targetRow][targetCol] = movingCard;
   state.grid[startRow][startCol] = null;
   shiftColumnDown(startCol, startRow);
-  state.chainMultiplier = 1;
-  if (spawnCardOrGameOver("move-to-empty")) {
-    statusEl.textContent = "Move complete. Card dropped.";
-  }
 }
 
 function handleSequenceTap(row, col) {
