@@ -2156,6 +2156,18 @@ async function clearSelectedSequence() {
   await runAutoResolutionFlow({
     reason: "after-sequence-clear",
     spawnContext: "sequence-clear",
+  if (spawned) {
+    statusEl.textContent = "Sequence cleared!";
+  }
+  if (!spawned) {
+    return renderBoard({ prevRectsOverride: prevRects });
+  }
+
+  const scoreAnimationPromise = (async () => {
+    await playScoreAnimation({ cards: animationCards, ...scoreBreakdown });
+    await animateScoreCountUp(oldScore, newScore, scoreEl);
+  })();
+  return renderBoard({
     prevRectsOverride: prevRects,
   });
 
