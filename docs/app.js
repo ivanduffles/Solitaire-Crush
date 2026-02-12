@@ -1292,8 +1292,6 @@ function handleDragSwap(targetRow, targetCol) {
   }
   swapCards(startRow, startCol, targetRow, targetCol);
   state.chainMultiplier = 1;
-  const spawned = dropCard();
-  if (spawned) {
   if (spawnCardOrGameOver("drag-swap")) {
     statusEl.textContent = "Swap complete. Card dropped.";
   }
@@ -1324,8 +1322,6 @@ function moveCardToEmpty(startRow, startCol, targetRow, targetCol) {
   state.grid[startRow][startCol] = null;
   shiftColumnDown(startCol, startRow);
   state.chainMultiplier = 1;
-  const spawned = dropCard();
-  if (spawned) {
   if (spawnCardOrGameOver("move-to-empty")) {
     statusEl.textContent = "Move complete. Card dropped.";
   }
@@ -1477,8 +1473,6 @@ function handleSwapperTap(row, col) {
   state.swapperActive = false;
   state.swapperSource = null;
   state.chainMultiplier = 1;
-  const spawned = dropCard();
-  if (spawned) {
   if (spawnCardOrGameOver("swapper")) {
     statusEl.textContent = "Swapper used. Card dropped.";
   }
@@ -1509,7 +1503,6 @@ function handleSwapModeTap(row, col) {
   state.swapMode = false;
   state.chainMultiplier = 1;
   state.freeSwapCount = Math.max(0, state.freeSwapCount - 1);
-  const spawned = dropCard();
   const spawned = spawnCardOrGameOver("free-swap");
   updateHud();
   if (spawned) {
@@ -1789,32 +1782,6 @@ function matchOrConsumeWildcard({ card, expectedRank, aceValue, wildcardState, s
   return { ok: true, usedWildcardNow: true };
 }
 
-}
-
-}
-
-function matchOrConsumeWildcard({ card, expectedRank, aceValue, wildcardState, sequenceIndex }) {
-  const value = getRankValue(card, aceValue);
-  if (value === expectedRank) {
-    return { ok: true, usedWildcardNow: false };
-  }
-  if (!isWildcardCard(card)) {
-    return { ok: false, usedWildcardNow: false };
-  }
-  if (
-    wildcardState.usedCount >= WILDCARD_LIMIT_PER_SEQUENCE ||
-    !canWildcardRepresentExpected(card, expectedRank)
-  ) {
-    return { ok: false, usedWildcardNow: false };
-  }
-
-  wildcardState.used = true;
-  wildcardState.usedCount += 1;
-  wildcardState.usedBy = card.rank;
-  wildcardState.usedAtIndex = sequenceIndex;
-  return { ok: true, usedWildcardNow: true };
-}
-
 function getRankValue(card, aceValue) {
   if (card.rank === "A") {
     return aceValue;
@@ -1879,10 +1846,7 @@ function runSequenceValidationDebugChecks() {
   inspectAttempts("reported valid case", [card("2", "♣"), card("2", "♠"), card("A", "♠")]);
 }
 
-function dropCard() {
 function getEligibleSpawnSlots() {
-  // Lose condition source of truth: if there is no eligible spawn slot,
-  // the game is over because no new card can enter the grid.
   const availableRows = [];
   for (let row = GRID_SIZE - 1; row >= 0; row -= 1) {
     const hasEmpty = state.grid[row].some((cell) => cell === null);
@@ -1891,17 +1855,6 @@ function getEligibleSpawnSlots() {
     }
   }
   if (availableRows.length === 0) {
-    statusEl.textContent = "No space for a new card. Game over.";
-    state.gameOver = true;
-    return false;
-  }
-
-  const targetRow = availableRows[0];
-  const emptyCols = state.grid[targetRow]
-    .map((cell, col) => (cell === null ? col : null))
-    .filter((col) => col !== null);
-  const targetCol = emptyCols[Math.floor(Math.random() * emptyCols.length)];
-  state.grid[targetRow][targetCol] = drawCard();
     return [];
   }
 
@@ -1995,7 +1948,6 @@ async function clearSingleCard(row, col, consumesFreeBomb) {
     state.bombMode = false;
     state.bombTarget = null;
   }
-  const spawned = dropCard();
   const spawned = spawnCardOrGameOver("bomb-clear");
   updateHud();
   if (spawned) {
@@ -2031,7 +1983,6 @@ async function clearSelectedSequence() {
     state.grid[row][col] = null;
   });
   collapseColumns();
-  const spawned = dropCard();
   const spawned = spawnCardOrGameOver("sequence-clear");
   clearSequenceSelection();
   updateHud({ preserveScore: true });
