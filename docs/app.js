@@ -128,6 +128,9 @@ function debugGameOverLog(message, payload = {}) {
 
 let scoreAnimationActive = false;
 let bombExplosionActive = false;
+const DEBUG_NEW_CARD_ENTER = false;
+let previousRenderCardIds = new Set();
+let hasRenderedBoard = false;
 const SWIPE_THRESHOLD_RATIO = 0.35;
 const LONG_PRESS_MS = 210;
 const LONG_PRESS_MOVE_TOLERANCE_TOUCH = 10;
@@ -727,8 +730,11 @@ function buildJokerCardContent() {
   return wrapper;
 }
 
-function renderBoard() {
-  const prevRects = state.animateMoves ? getCardRects() : null;
+function renderBoard(options = {}) {
+  const { prevRectsOverride = null, awaitScorePromise = null } = options;
+  const prevRects = prevRectsOverride || (state.animateMoves ? getCardRects() : null);
+  const currentCardIds = new Set();
+  const newCardEls = [];
   boardEl.innerHTML = "";
   const selectedSet = new Set(
     state.sequenceSelection.map(({ row, col }) => `${row}-${col}`)
@@ -746,6 +752,11 @@ function renderBoard() {
         cell.textContent = "·";
       } else {
         cell.dataset.cardId = card.id;
+        currentCardIds.add(card.id);
+        if (hasRenderedBoard && !previousRenderCardIds.has(card.id)) {
+          cell.classList.add("card--pre-enter");
+          newCardEls.push(cell);
+        }
         if (ASSET_MODE === "sprite") {
           const assetKey = getCardAssetKey(card);
           if (assetKey) {
@@ -811,11 +822,27 @@ function renderBoard() {
       boardEl.appendChild(cell);
     }
   }
-  if (prevRects) {
-    requestAnimationFrame(() => animateCardMoves(prevRects));
+  if (DEBUG_NEW_CARD_ENTER) {
+    console.log(`[new-card-enter] newCards detected: ${newCardEls.length}`);
   }
+
+  const boardMovePromise = prevRects
+    ? new Promise((resolve) => {
+      requestAnimationFrame(() => {
+        resolve(animateCardMoves(prevRects));
+      });
+    })
+    : Promise.resolve();
+  const scoreWaitPromise = awaitScorePromise || Promise.resolve();
+  const animationSequencePromise = Promise.resolve(scoreWaitPromise)
+    .then(() => boardMovePromise)
+    .then(() => animateNewCardsEnter(newCardEls));
+
+  previousRenderCardIds = currentCardIds;
+  hasRenderedBoard = true;
   updateClearButtonVisibility();
   state.animateMoves = false;
+  return animationSequencePromise;
 }
 
 function handlePointerDown(event) {
@@ -1546,6 +1573,64 @@ function animateCardMoves(prevRects) {
   });
 }
 
+function animateNewCardsEnter(newCardEls = []) {
+  if (!newCardEls.length) {
+    return Promise.resolve();
+  }
+  if (DEBUG_NEW_CARD_ENTER) {
+    console.log(`[new-card-enter] enter animation start (${newCardEls.length})`);
+  }
+
+  newCardEls.forEach((cardEl) => {
+    const nextRect = cardEl.getBoundingClientRect();
+    const startY = -nextRect.height - 24;
+    const deltaY = startY - nextRect.top;
+    if (DEBUG_NEW_CARD_ENTER) {
+      console.log(
+        `[new-card-enter] entering new card ${cardEl.dataset.cardId} col=${cardEl.dataset.col} deltaY=${Math.round(deltaY)}`
+      );
+    }
+    cardEl.style.opacity = "0";
+    cardEl.style.transform = `translate(0px, ${deltaY}px)`;
+  });
+
+  return new Promise((resolveAll) => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const animations = newCardEls.map(
+        (cardEl) => new Promise((resolve) => {
+          cardEl.classList.add("card--entering");
+          cardEl.classList.remove("card--pre-enter");
+          cardEl.style.transform = "";
+          cardEl.style.opacity = "1";
+          let settled = false;
+          const cleanup = () => {
+            if (settled) {
+              return;
+            }
+            settled = true;
+            cardEl.classList.remove("card--entering");
+            cardEl.classList.remove("card--pre-enter");
+            cardEl.style.removeProperty("transform");
+            cardEl.style.removeProperty("opacity");
+            resolve();
+          };
+          cardEl.addEventListener("transitionend", cleanup, { once: true });
+          window.setTimeout(cleanup, 620);
+        })
+      );
+
+        Promise.all(animations).then(() => {
+          if (DEBUG_NEW_CARD_ENTER) {
+            console.log("[new-card-enter] enter animation end");
+          }
+          resolveAll();
+        });
+      });
+    });
+  });
+}
+
 function swapCards(rowA, colA, rowB, colB) {
   const temp = state.grid[rowA][colA];
   state.grid[rowA][colA] = state.grid[rowB][colB];
@@ -1697,6 +1782,30 @@ function matchOrConsumeWildcard({ card, expectedRank, aceValue, wildcardState, s
   return { ok: true, usedWildcardNow: true };
 }
 
+}
+
+function matchOrConsumeWildcard({ card, expectedRank, aceValue, wildcardState, sequenceIndex }) {
+  const value = getRankValue(card, aceValue);
+  if (value === expectedRank) {
+    return { ok: true, usedWildcardNow: false };
+  }
+  if (!isWildcardCard(card)) {
+    return { ok: false, usedWildcardNow: false };
+  }
+  if (
+    wildcardState.usedCount >= WILDCARD_LIMIT_PER_SEQUENCE ||
+    !canWildcardRepresentExpected(card, expectedRank)
+  ) {
+    return { ok: false, usedWildcardNow: false };
+  }
+
+  wildcardState.used = true;
+  wildcardState.usedCount += 1;
+  wildcardState.usedBy = card.rank;
+  wildcardState.usedAtIndex = sequenceIndex;
+  return { ok: true, usedWildcardNow: true };
+}
+
 function getRankValue(card, aceValue) {
   if (card.rank === "A") {
     return aceValue;
@@ -1761,6 +1870,7 @@ function runSequenceValidationDebugChecks() {
   inspectAttempts("reported valid case", [card("2", "♣"), card("2", "♠"), card("A", "♠")]);
 }
 
+function dropCard() {
 function getEligibleSpawnSlots() {
   // Lose condition source of truth: if there is no eligible spawn slot,
   // the game is over because no new card can enter the grid.
@@ -1772,6 +1882,17 @@ function getEligibleSpawnSlots() {
     }
   }
   if (availableRows.length === 0) {
+    statusEl.textContent = "No space for a new card. Game over.";
+    state.gameOver = true;
+    return false;
+  }
+
+  const targetRow = availableRows[0];
+  const emptyCols = state.grid[targetRow]
+    .map((cell, col) => (cell === null ? col : null))
+    .filter((col) => col !== null);
+  const targetCol = emptyCols[Math.floor(Math.random() * emptyCols.length)];
+  state.grid[targetRow][targetCol] = drawCard();
     return [];
   }
 
@@ -1900,12 +2021,26 @@ async function clearSelectedSequence() {
     state.grid[row][col] = null;
   });
   collapseColumns();
+  const spawned = dropCard();
   const spawned = spawnCardOrGameOver("sequence-clear");
   clearSequenceSelection();
   updateHud({ preserveScore: true });
   if (spawned) {
     statusEl.textContent = "Sequence cleared!";
   }
+  if (!spawned) {
+    await renderBoard({ prevRectsOverride: prevRects });
+    return;
+  }
+
+  const scoreAnimationPromise = (async () => {
+    await playScoreAnimation({ cards: animationCards, ...scoreBreakdown });
+    await animateScoreCountUp(oldScore, newScore, scoreEl);
+  })();
+  await renderBoard({
+    prevRectsOverride: prevRects,
+    awaitScorePromise: scoreAnimationPromise,
+  });
   renderBoard();
   if (!spawned) {
     return;
