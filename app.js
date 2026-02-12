@@ -162,9 +162,19 @@ function cloneSnapshot(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
+function buildSerializableStateSnapshot() {
+  return {
+    ...state,
+    // Runtime-only values can contain non-serializable DOM references during drag operations.
+    dragState: null,
+    longPressTimer: null,
+    dragStartCard: null,
+  };
+}
+
 function exportSnapshot() {
   return {
-    state: cloneSnapshot(state),
+    state: cloneSnapshot(buildSerializableStateSnapshot()),
     statusMessage: statusEl?.textContent || "",
     gameOverOverlayHidden: gameOverOverlayEl?.hidden ?? true,
     menuOpen: !(gameMenuModal?.hidden ?? true),
