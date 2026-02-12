@@ -273,6 +273,45 @@ function animateHistoryCardEntry(newCardEls = [], historyTransition = null, reas
   return Promise.all(animations);
 }
 
+function animateUndoCardsEnterReverseFall(newCardEls = []) {
+  if (!newCardEls.length) {
+    return Promise.resolve();
+  }
+
+  newCardEls.forEach((cardEl) => {
+    const nextRect = cardEl.getBoundingClientRect();
+    const travel = Math.max(nextRect.height + 24, 40);
+    cardEl.classList.remove("card--pre-enter");
+    cardEl.style.opacity = "0";
+    cardEl.style.transform = `translate(0px, ${travel}px)`;
+  });
+
+  return new Promise((resolveAll) => {
+    requestAnimationFrame(() => {
+      const animations = newCardEls.map((cardEl) => new Promise((resolve) => {
+        cardEl.classList.add("card--entering");
+        cardEl.style.transform = "";
+        cardEl.style.opacity = "1";
+        let settled = false;
+        const cleanup = () => {
+          if (settled) {
+            return;
+          }
+          settled = true;
+          cardEl.classList.remove("card--entering");
+          cardEl.classList.remove("card--pre-enter");
+          cardEl.style.removeProperty("transform");
+          cardEl.style.removeProperty("opacity");
+          resolve();
+        };
+        cardEl.addEventListener("transitionend", cleanup, { once: true });
+        window.setTimeout(cleanup, 620);
+      }));
+      Promise.all(animations).then(resolveAll);
+    });
+  });
+}
+
 function exportSnapshot() {
   return {
     state: cloneSnapshot(buildSerializableStateSnapshot()),
@@ -1134,6 +1173,12 @@ function renderBoard(options = {}) {
   const animationSequencePromise = Promise.resolve(scoreWaitPromise)
     .then(() => boardMovePromise)
     .then(() => {
+      if (historyTransition === "redo") {
+        return animateNewCardsEnter(newCardEls);
+      }
+      if (historyTransition === "undo") {
+        return animateUndoCardsEnterReverseFall(newCardEls);
+      }
       if (historyTransition) {
         return animateHistoryCardEntry(newCardEls, historyTransition, historyReason);
       }
