@@ -120,6 +120,9 @@ const menuOverlay = document.getElementById("menuOverlay");
 const gameOverOverlayEl = document.getElementById("gameOverOverlay");
 const playAgainButtonEl = document.getElementById("playAgainButton");
 
+function isInputLocked() {
+  return state.gameOver || !gameOverOverlayEl?.hidden;
+}
 
 function isDebugGameOverEnabled() {
   return typeof window !== "undefined" && window.__DEBUG_GAMEOVER;
@@ -825,7 +828,7 @@ function renderBoard() {
 }
 
 function handlePointerDown(event) {
-  if (scoreAnimationActive || state.gameOver) {
+  if (scoreAnimationActive || isInputLocked()) {
     return;
   }
   event.preventDefault();
@@ -862,7 +865,7 @@ function handlePointerDown(event) {
     !(state.bombMode || state.swapMode || state.swapperActive || state.pendingSwap);
   if (canLongPressSelect) {
     state.longPressTimer = window.setTimeout(() => {
-      if (!state.dragState || state.dragState.longPressCancelled || scoreAnimationActive || state.gameOver) {
+      if (!state.dragState || state.dragState.longPressCancelled || scoreAnimationActive || isInputLocked()) {
         return;
       }
       startDragSelection();
@@ -875,7 +878,7 @@ function handlePointerDown(event) {
 }
 
 function handlePointerEnter(event) {
-  if (scoreAnimationActive || bombExplosionActive || !state.dragState || state.gameOver) {
+  if (scoreAnimationActive || bombExplosionActive || !state.dragState || isInputLocked()) {
     return;
   }
   if (state.swapMode || state.bombMode || state.pendingSwap) {
@@ -891,7 +894,7 @@ function handlePointerEnter(event) {
 }
 
 function handlePointerMove(event) {
-  if (scoreAnimationActive || bombExplosionActive || !state.dragState || state.gameOver) {
+  if (scoreAnimationActive || bombExplosionActive || !state.dragState || isInputLocked()) {
     return;
   }
   if (state.swapMode || state.bombMode || state.pendingSwap) {
@@ -962,7 +965,7 @@ function handlePointerCancel() {
 }
 
 async function handlePointerUp(event) {
-  if (scoreAnimationActive || bombExplosionActive || !state.dragState || state.gameOver) {
+  if (scoreAnimationActive || bombExplosionActive || !state.dragState || isInputLocked()) {
     return;
   }
   const { moved } = state.dragState;
@@ -1815,6 +1818,7 @@ function triggerGameOver(reason = "spawn-blocked") {
   state.dragState = null;
   state.dragSelecting = false;
   statusEl.textContent = "No space for a new card. Game over.";
+  setMenuOpen(false);
   debugGameOverLog("game over triggered", { reason });
   showGameOverOverlay();
 }
@@ -2042,7 +2046,7 @@ function handleGlobalKeydown(event) {
 }
 
 freeSwapButton.addEventListener("click", () => {
-  if (scoreAnimationActive || bombExplosionActive || state.gameOver || state.freeSwapCount <= 0) {
+  if (scoreAnimationActive || bombExplosionActive || isInputLocked() || state.freeSwapCount <= 0) {
     return;
   }
   state.swapMode = !state.swapMode;
@@ -2060,7 +2064,7 @@ freeSwapButton.addEventListener("click", () => {
 });
 
 clearSequenceButton?.addEventListener("click", () => {
-  if (scoreAnimationActive || bombExplosionActive || !state.sequenceValid || state.sequenceSelection.length < 3) {
+  if (scoreAnimationActive || bombExplosionActive || isInputLocked() || !state.sequenceValid || state.sequenceSelection.length < 3) {
     return;
   }
   state.lastTap = null;
@@ -2068,7 +2072,7 @@ clearSequenceButton?.addEventListener("click", () => {
 });
 
 freeBombButton.addEventListener("click", () => {
-  if (scoreAnimationActive || bombExplosionActive || state.gameOver || state.freeBombCount <= 0) {
+  if (scoreAnimationActive || bombExplosionActive || isInputLocked() || state.freeBombCount <= 0) {
     return;
   }
   state.bombMode = !state.bombMode;
@@ -2099,6 +2103,9 @@ init();
 
 
 menuBtn?.addEventListener("click", () => {
+  if (isInputLocked()) {
+    return;
+  }
   setMenuOpen(true);
 });
 
