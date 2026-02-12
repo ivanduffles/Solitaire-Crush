@@ -2036,6 +2036,10 @@ async function runAutoResolutionFlow(options = {}) {
       debugFlowLog("step A start", { reason });
       let violations = await settleGravityUntilStable();
       debugFlowLog("step A end", { reason, floatingViolations: violations });
+      if (violations > 0) {
+        debugFlowLog("step A unstable after settle", { reason, floatingViolations: violations });
+        throw new Error(`Gravity failed to stabilize before spawn (${violations} violations)`);
+      }
 
       debugFlowLog("step B start", { reason });
       let spawnedCount = 0;
@@ -2052,12 +2056,18 @@ async function runAutoResolutionFlow(options = {}) {
       debugFlowLog("step C start", { reason });
       violations = await settleGravityUntilStable();
       debugFlowLog("step C end", { reason, floatingViolations: violations });
+      if (violations > 0) {
+        debugFlowLog("step C unstable after settle", { reason, floatingViolations: violations });
+        throw new Error(`Gravity failed to stabilize after spawn (${violations} violations)`);
+      }
 
       debugFlowLog("step D start", { reason });
       await renderBoard({ prevRectsOverride });
       debugFlowLog("step D end", { reason });
     } finally {
+      debugFlowLog("step E start", { reason });
       autoResolutionActive = false;
+      debugFlowLog("step E end", { reason, inputUnlocked: true });
       debugFlowLog("auto resolution end", { reason });
     }
   };
