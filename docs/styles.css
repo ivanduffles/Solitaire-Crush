@@ -403,6 +403,10 @@ body {
   will-change: transform;
 }
 
+.card--pre-enter {
+  opacity: 0;
+}
+
 .card--entering {
   transition:
     transform 500ms cubic-bezier(.2,.8,.2,1),

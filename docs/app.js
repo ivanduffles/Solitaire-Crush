@@ -730,6 +730,7 @@ function renderBoard(options = {}) {
         cell.dataset.cardId = card.id;
         currentCardIds.add(card.id);
         if (hasRenderedBoard && !previousRenderCardIds.has(card.id)) {
+          cell.classList.add("card--pre-enter");
           newCardEls.push(cell);
         }
         if (ASSET_MODE === "sprite") {
@@ -1567,6 +1568,7 @@ function animateNewCardsEnter(newCardEls = []) {
         const animations = newCardEls.map(
         (cardEl) => new Promise((resolve) => {
           cardEl.classList.add("card--entering");
+          cardEl.classList.remove("card--pre-enter");
           cardEl.style.transform = "";
           cardEl.style.opacity = "1";
           let settled = false;
@@ -1576,6 +1578,7 @@ function animateNewCardsEnter(newCardEls = []) {
             }
             settled = true;
             cardEl.classList.remove("card--entering");
+            cardEl.classList.remove("card--pre-enter");
             cardEl.style.removeProperty("transform");
             cardEl.style.removeProperty("opacity");
             resolve();
