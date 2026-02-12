@@ -2002,13 +2002,6 @@ async function clearSelectedSequence() {
     prevRectsOverride: prevRects,
     awaitScorePromise: scoreAnimationPromise,
   });
-  renderBoard();
-  if (!spawned) {
-    return;
-  }
-  await animateCardMoves(prevRects);
-  await playScoreAnimation({ cards: animationCards, ...scoreBreakdown });
-  await animateScoreCountUp(oldScore, newScore, scoreEl);
 }
 
 function collapseColumns() {
