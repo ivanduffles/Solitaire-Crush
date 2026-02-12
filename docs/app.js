@@ -59,7 +59,7 @@ const JOKER_HAT_SVG = `
   </svg>
 `;
 
-const state = {
+const INITIAL_STATE = {
   grid: [],
   deck: [],
   freeSwapCount: 3,
@@ -87,6 +87,13 @@ const state = {
   animateMoves: false,
 };
 
+const state = {
+  ...INITIAL_STATE,
+  grid: [],
+  deck: [],
+  sequenceSelection: [],
+};
+
 const boardEl = document.getElementById("board");
 const scoreEl = document.getElementById("scoreValue");
 const swapCountEl = document.getElementById("freeSwapCount");
@@ -101,6 +108,23 @@ const menuBtn = document.getElementById("menuBtn");
 const gameMenuModal = document.getElementById("gameMenuModal");
 const closeMenuBtn = document.getElementById("closeMenuBtn");
 const menuOverlay = document.getElementById("menuOverlay");
+const gameOverOverlayEl = document.getElementById("gameOverOverlay");
+const playAgainButtonEl = document.getElementById("playAgainButton");
+
+function isInputLocked() {
+  return state.gameOver || !gameOverOverlayEl?.hidden;
+}
+
+function isDebugGameOverEnabled() {
+  return typeof window !== "undefined" && window.__DEBUG_GAMEOVER;
+}
+
+function debugGameOverLog(message, payload = {}) {
+  if (!isDebugGameOverEnabled()) {
+    return;
+  }
+  console.log(`[gameover-debug] ${message}`, payload);
+}
 
 let scoreAnimationActive = false;
 let bombExplosionActive = false;
@@ -625,6 +649,10 @@ function initGrid() {
   );
   for (let row = GRID_SIZE - 1; row >= GRID_SIZE - INITIAL_ROWS; row -= 1) {
     for (let col = 0; col < GRID_SIZE; col += 1) {
+      if (!canSpawnNewCard()) {
+        triggerGameOver("initial-deal-no-slot");
+        return;
+      }
       state.grid[row][col] = drawCard();
     }
   }
@@ -791,7 +819,7 @@ function renderBoard() {
 }
 
 function handlePointerDown(event) {
-  if (scoreAnimationActive || state.gameOver) {
+  if (scoreAnimationActive || isInputLocked()) {
     return;
   }
   event.preventDefault();
@@ -828,7 +856,7 @@ function handlePointerDown(event) {
     !(state.bombMode || state.swapMode || state.swapperActive || state.pendingSwap);
   if (canLongPressSelect) {
     state.longPressTimer = window.setTimeout(() => {
-      if (!state.dragState || state.dragState.longPressCancelled || scoreAnimationActive || state.gameOver) {
+      if (!state.dragState || state.dragState.longPressCancelled || scoreAnimationActive || isInputLocked()) {
         return;
       }
       startDragSelection();
@@ -841,7 +869,7 @@ function handlePointerDown(event) {
 }
 
 function handlePointerEnter(event) {
-  if (scoreAnimationActive || bombExplosionActive || !state.dragState || state.gameOver) {
+  if (scoreAnimationActive || bombExplosionActive || !state.dragState || isInputLocked()) {
     return;
   }
   if (state.swapMode || state.bombMode || state.pendingSwap) {
@@ -857,7 +885,7 @@ function handlePointerEnter(event) {
 }
 
 function handlePointerMove(event) {
-  if (scoreAnimationActive || bombExplosionActive || !state.dragState || state.gameOver) {
+  if (scoreAnimationActive || bombExplosionActive || !state.dragState || isInputLocked()) {
     return;
   }
   if (state.swapMode || state.bombMode || state.pendingSwap) {
@@ -928,7 +956,7 @@ function handlePointerCancel() {
 }
 
 async function handlePointerUp(event) {
-  if (scoreAnimationActive || bombExplosionActive || !state.dragState || state.gameOver) {
+  if (scoreAnimationActive || bombExplosionActive || !state.dragState || isInputLocked()) {
     return;
   }
   const { moved } = state.dragState;
@@ -1237,8 +1265,9 @@ function handleDragSwap(targetRow, targetCol) {
   }
   swapCards(startRow, startCol, targetRow, targetCol);
   state.chainMultiplier = 1;
-  dropCard();
-  statusEl.textContent = "Swap complete. Card dropped.";
+  if (spawnCardOrGameOver("drag-swap")) {
+    statusEl.textContent = "Swap complete. Card dropped.";
+  }
 }
 
 function getSwipeTarget(start, deltaX, deltaY) {
@@ -1266,8 +1295,9 @@ function moveCardToEmpty(startRow, startCol, targetRow, targetCol) {
   state.grid[startRow][startCol] = null;
   shiftColumnDown(startCol, startRow);
   state.chainMultiplier = 1;
-  dropCard();
-  statusEl.textContent = "Move complete. Card dropped.";
+  if (spawnCardOrGameOver("move-to-empty")) {
+    statusEl.textContent = "Move complete. Card dropped.";
+  }
 }
 
 function handleSequenceTap(row, col) {
@@ -1416,8 +1446,9 @@ function handleSwapperTap(row, col) {
   state.swapperActive = false;
   state.swapperSource = null;
   state.chainMultiplier = 1;
-  dropCard();
-  statusEl.textContent = "Swapper used. Card dropped.";
+  if (spawnCardOrGameOver("swapper")) {
+    statusEl.textContent = "Swapper used. Card dropped.";
+  }
   renderBoard();
 }
 
@@ -1445,9 +1476,11 @@ function handleSwapModeTap(row, col) {
   state.swapMode = false;
   state.chainMultiplier = 1;
   state.freeSwapCount = Math.max(0, state.freeSwapCount - 1);
-  dropCard();
+  const spawned = spawnCardOrGameOver("free-swap");
   updateHud();
-  statusEl.textContent = "Swap used. Card dropped.";
+  if (spawned) {
+    statusEl.textContent = "Swap used. Card dropped.";
+  }
   renderBoard();
 }
 
@@ -1519,6 +1552,8 @@ function swapCards(rowA, colA, rowB, colB) {
   state.grid[rowB][colB] = temp;
 }
 
+const WILDCARD_LIMIT_PER_SEQUENCE = 1;
+
 function validateSequence(selection) {
   if (selection.length < 3) {
     return { valid: false, usesWildcard: false };
@@ -1530,8 +1565,11 @@ function validateSequence(selection) {
   if (cards.some((card) => card === null)) {
     return { valid: false, usesWildcard: false };
   }
-  const nonWildcards = cards.filter((card) => !isPotentialWildcard(card));
-  if (nonWildcards.length < 2) {
+  const nonWildcards = cards.filter((card) => !isWildcardCard(card));
+  // Bug fix: we only need one non-wild anchor card to evaluate expected ranks.
+  // Requiring two rejects valid runs such as 2♣, 2♠, A♠ where one 2 is consumed
+  // as wildcard and the other 2 + Ace provide concrete rank matches.
+  if (nonWildcards.length < 1) {
     return { valid: false, usesWildcard: false };
   }
   const baseSuit = nonWildcards[0].suit;
@@ -1542,6 +1580,7 @@ function validateSequence(selection) {
   const attempts = [
     { direction: 1, aceValue: 1 },
     { direction: 1, aceValue: 14 },
+    { direction: -1, aceValue: 1 },
     { direction: -1, aceValue: 14 },
   ];
 
@@ -1578,7 +1617,9 @@ function validateSequencePair(selection) {
   if (cards.some((card) => card === null)) {
     return { valid: false };
   }
-  const nonWildcards = cards.filter((card) => !isPotentialWildcard(card));
+  // Pair validation only enforces suit for non-wild cards.
+  // If either card is wild, we defer strict rank validation to 3+ cards.
+  const nonWildcards = cards.filter((card) => !isWildcardCard(card));
   if (nonWildcards.length < 2) {
     return { valid: true };
   }
@@ -1586,38 +1627,77 @@ function validateSequencePair(selection) {
   return { valid: first.suit === second.suit };
 }
 
+/*
+ * Sequence wildcard policy (single source of truth):
+ * - Wild cards are Joker and rank "2".
+ * - Wildcards may substitute rank only (suit is enforced separately by non-wild suit checks).
+ * - At most one wildcard substitution can be consumed per sequence.
+ * - Current gameplay rule: rank "2" cannot substitute when the expected rank is literal 2.
+ *   (Changing this behavior later should be a one-line edit in canWildcardRepresentExpected.)
+ */
 function attemptSequence(cards, direction, aceValue) {
-  let wildcardUsed = false;
-  const baseIndex = cards.findIndex((card) => !isPotentialWildcard(card));
+  const wildcardState = {
+    used: false,
+    usedCount: 0,
+    usedBy: null,
+    usedAtIndex: null,
+  };
+  const baseIndex = cards.findIndex((card) => !isWildcardCard(card));
   if (baseIndex === -1) {
     return { valid: false, usesWildcard: false };
   }
-  const baseValue = rankValue(cards[baseIndex], aceValue);
+  const baseValue = getRankValue(cards[baseIndex], aceValue);
   if (baseValue === null) {
     return { valid: false, usesWildcard: false };
   }
   for (let i = 0; i < cards.length; i += 1) {
-    const expected = baseValue + direction * (i - baseIndex);
-    if (expected < 1 || expected > 14) {
+    const expectedRank = baseValue + direction * (i - baseIndex);
+    if (expectedRank < 1 || expectedRank > 14) {
       return { valid: false, usesWildcard: false };
     }
-    const card = cards[i];
-    const value = rankValue(card, aceValue);
-    if (value === expected) {
-      continue;
-    }
-    if (wildcardUsed || !isPotentialWildcard(card)) {
+    const matchResult = matchOrConsumeWildcard({
+      card: cards[i],
+      expectedRank,
+      aceValue,
+      wildcardState,
+      sequenceIndex: i,
+    });
+    if (!matchResult.ok) {
       return { valid: false, usesWildcard: false };
     }
-    if (card.rank === "2" && expected === 2) {
-      return { valid: false, usesWildcard: false };
-    }
-    wildcardUsed = true;
   }
-  return { valid: true, usesWildcard: wildcardUsed };
+  return {
+    valid: true,
+    usesWildcard: wildcardState.used,
+    wildcardConsumption: wildcardState.used
+      ? { by: wildcardState.usedBy, index: wildcardState.usedAtIndex }
+      : null,
+  };
 }
 
-function rankValue(card, aceValue) {
+function matchOrConsumeWildcard({ card, expectedRank, aceValue, wildcardState, sequenceIndex }) {
+  const value = getRankValue(card, aceValue);
+  if (value === expectedRank) {
+    return { ok: true, usedWildcardNow: false };
+  }
+  if (!isWildcardCard(card)) {
+    return { ok: false, usedWildcardNow: false };
+  }
+  if (
+    wildcardState.usedCount >= WILDCARD_LIMIT_PER_SEQUENCE ||
+    !canWildcardRepresentExpected(card, expectedRank)
+  ) {
+    return { ok: false, usedWildcardNow: false };
+  }
+
+  wildcardState.used = true;
+  wildcardState.usedCount += 1;
+  wildcardState.usedBy = card.rank;
+  wildcardState.usedAtIndex = sequenceIndex;
+  return { ok: true, usedWildcardNow: true };
+}
+
+function getRankValue(card, aceValue) {
   if (card.rank === "A") {
     return aceValue;
   }
@@ -1636,11 +1716,54 @@ function rankValue(card, aceValue) {
   return Number(card.rank);
 }
 
-function isPotentialWildcard(card) {
+function isWildcardCard(card) {
   return card.rank === "Joker" || card.rank === "2";
 }
 
-function dropCard() {
+function canWildcardRepresentExpected(card, expectedRank) {
+  if (!isWildcardCard(card)) {
+    return false;
+  }
+  // Keep current gameplay behavior: rank "2" cannot substitute as literal rank 2.
+  return !(card.rank === "2" && expectedRank === 2);
+}
+
+function runSequenceValidationDebugChecks() {
+  if (typeof window === "undefined" || !window.__DEBUG_SEQUENCE_VALIDATION) {
+    return;
+  }
+
+  const card = (rank, suit = "♠") => ({ rank, suit });
+  const inspectAttempts = (name, cards) => {
+    const attempts = [
+      { direction: 1, aceValue: 1, label: "asc/A-low" },
+      { direction: 1, aceValue: 14, label: "asc/A-high" },
+      { direction: -1, aceValue: 1, label: "desc/A-low" },
+      { direction: -1, aceValue: 14, label: "desc/A-high" },
+    ];
+    const results = attempts.map((attempt) => ({
+      ...attempt,
+      result: attemptSequence(cards, attempt.direction, attempt.aceValue),
+    }));
+    const passing = results.find((entry) => entry.result.valid);
+    console.log(`[sequence-debug] ${name}`, {
+      cards,
+      passingAttempt: passing ? passing.label : null,
+      wildcardConsumption: passing ? passing.result.wildcardConsumption : null,
+      results,
+    });
+  };
+
+  inspectAttempts("one wildcard consumed", [card("5"), card("Joker"), card("7")]);
+  inspectAttempts("wildcard present but not consumed", [card("A"), card("2"), card("3")]);
+  inspectAttempts("two cannot represent literal two", [card("A"), card("2"), card("4")]);
+  inspectAttempts("ace low/high comparison", [card("Q"), card("K"), card("A")]);
+  inspectAttempts("reported valid case", [card("2", "♣"), card("2", "♠"), card("A", "♠")]);
+}
+
+function getEligibleSpawnSlots() {
+  // Lose condition source of truth: if there is no eligible spawn slot,
+  // the game is over because no new card can enter the grid.
   const availableRows = [];
   for (let row = GRID_SIZE - 1; row >= 0; row -= 1) {
     const hasEmpty = state.grid[row].some((cell) => cell === null);
@@ -1649,17 +1772,61 @@ function dropCard() {
     }
   }
   if (availableRows.length === 0) {
-    statusEl.textContent = "No space for a new card. Game over.";
-    state.gameOver = true;
-    return;
+    return [];
   }
 
   const targetRow = availableRows[0];
-  const emptyCols = state.grid[targetRow]
-    .map((cell, col) => (cell === null ? col : null))
-    .filter((col) => col !== null);
-  const targetCol = emptyCols[Math.floor(Math.random() * emptyCols.length)];
-  state.grid[targetRow][targetCol] = drawCard();
+  return state.grid[targetRow]
+    .map((cell, col) => (cell === null ? { row: targetRow, col } : null))
+    .filter(Boolean);
+}
+
+function canSpawnNewCard() {
+  return getEligibleSpawnSlots().length > 0;
+}
+
+function showGameOverOverlay() {
+  if (!gameOverOverlayEl) {
+    return;
+  }
+  gameOverOverlayEl.hidden = false;
+  playAgainButtonEl?.focus();
+}
+
+function hideGameOverOverlay() {
+  if (!gameOverOverlayEl) {
+    return;
+  }
+  gameOverOverlayEl.hidden = true;
+}
+
+function triggerGameOver(reason = "spawn-blocked") {
+  if (state.gameOver) {
+    return;
+  }
+  state.gameOver = true;
+  clearLongPressTimer();
+  state.dragState = null;
+  state.dragSelecting = false;
+  statusEl.textContent = "No space for a new card. Game over.";
+  setMenuOpen(false);
+  debugGameOverLog("game over triggered", { reason });
+  showGameOverOverlay();
+}
+
+function spawnCardOrGameOver(context = "drop") {
+  debugGameOverLog("spawn attempt", { context });
+  const canSpawn = canSpawnNewCard();
+  debugGameOverLog("canSpawnNewCard() result", { context, canSpawn });
+  if (!canSpawn) {
+    triggerGameOver(`no-slot:${context}`);
+    return false;
+  }
+
+  const slots = getEligibleSpawnSlots();
+  const target = slots[Math.floor(Math.random() * slots.length)];
+  state.grid[target.row][target.col] = drawCard();
+  return true;
 }
 
 function clearSequenceSelection() {
@@ -1698,9 +1865,11 @@ async function clearSingleCard(row, col, consumesFreeBomb) {
     state.bombMode = false;
     state.bombTarget = null;
   }
-  dropCard();
+  const spawned = spawnCardOrGameOver("bomb-clear");
   updateHud();
-  statusEl.textContent = "Bomb used. Card cleared.";
+  if (spawned) {
+    statusEl.textContent = "Bomb used. Card cleared.";
+  }
   renderBoard();
 }
 
@@ -1731,11 +1900,16 @@ async function clearSelectedSequence() {
     state.grid[row][col] = null;
   });
   collapseColumns();
-  dropCard();
+  const spawned = spawnCardOrGameOver("sequence-clear");
   clearSequenceSelection();
   updateHud({ preserveScore: true });
-  statusEl.textContent = "Sequence cleared!";
+  if (spawned) {
+    statusEl.textContent = "Sequence cleared!";
+  }
   renderBoard();
+  if (!spawned) {
+    return;
+  }
   await animateCardMoves(prevRects);
   await playScoreAnimation({ cards: animationCards, ...scoreBreakdown });
   await animateScoreCountUp(oldScore, newScore, scoreEl);
@@ -1774,11 +1948,44 @@ function applyScore(length, usesWildcard) {
   };
 }
 
+function resetRuntimeState() {
+  Object.assign(state, {
+    ...INITIAL_STATE,
+    grid: [],
+    deck: [],
+    sequenceSelection: [],
+  });
+  clearLongPressTimer();
+  scoreAnimationActive = false;
+  bombExplosionActive = false;
+}
+
 function init() {
+  resetRuntimeState();
   state.deck = buildDeck();
   initGrid();
+  hideGameOverOverlay();
   updateHud();
+  statusEl.textContent = "Tap adjacent cards to swap. Tap again to deselect.";
   renderBoard();
+}
+
+function restartGame() {
+  debugGameOverLog("restart requested");
+  init();
+}
+
+function debugFillSpawnSlotsAndTriggerGameOver() {
+  // Dev helper to reproduce the lose condition deterministically.
+  for (let row = 0; row < GRID_SIZE; row += 1) {
+    for (let col = 0; col < GRID_SIZE; col += 1) {
+      if (!state.grid[row][col]) {
+        state.grid[row][col] = drawCard();
+      }
+    }
+  }
+  renderBoard();
+  spawnCardOrGameOver("debug-fill-all-slots");
 }
 
 function renderPowerupButtonIcons() {
@@ -1814,8 +2021,15 @@ function setMenuOpen(isOpen) {
   gameMenuModal.hidden = !isOpen;
 }
 
-function handleMenuKeydown(event) {
-  if (event.key !== "Escape" || gameMenuModal?.hidden) {
+function handleGlobalKeydown(event) {
+  if (event.key !== "Escape") {
+    return;
+  }
+  if (!gameOverOverlayEl?.hidden) {
+    restartGame();
+    return;
+  }
+  if (gameMenuModal?.hidden) {
     return;
   }
   setMenuOpen(false);
@@ -1823,7 +2037,7 @@ function handleMenuKeydown(event) {
 }
 
 freeSwapButton.addEventListener("click", () => {
-  if (scoreAnimationActive || bombExplosionActive || state.gameOver || state.freeSwapCount <= 0) {
+  if (scoreAnimationActive || bombExplosionActive || isInputLocked() || state.freeSwapCount <= 0) {
     return;
   }
   state.swapMode = !state.swapMode;
@@ -1841,7 +2055,7 @@ freeSwapButton.addEventListener("click", () => {
 });
 
 clearSequenceButton?.addEventListener("click", () => {
-  if (scoreAnimationActive || bombExplosionActive || !state.sequenceValid || state.sequenceSelection.length < 3) {
+  if (scoreAnimationActive || bombExplosionActive || isInputLocked() || !state.sequenceValid || state.sequenceSelection.length < 3) {
     return;
   }
   state.lastTap = null;
@@ -1849,7 +2063,7 @@ clearSequenceButton?.addEventListener("click", () => {
 });
 
 freeBombButton.addEventListener("click", () => {
-  if (scoreAnimationActive || bombExplosionActive || state.gameOver || state.freeBombCount <= 0) {
+  if (scoreAnimationActive || bombExplosionActive || isInputLocked() || state.freeBombCount <= 0) {
     return;
   }
   state.bombMode = !state.bombMode;
@@ -1873,10 +2087,16 @@ boardEl.addEventListener("pointercancel", handlePointerCancel);
 boardEl.addEventListener("pointerleave", handlePointerCancel);
 
 renderPowerupButtonIcons();
+if (window.__DEBUG_SEQUENCE_VALIDATION) {
+  runSequenceValidationDebugChecks();
+}
 init();
 
 
 menuBtn?.addEventListener("click", () => {
+  if (isInputLocked()) {
+    return;
+  }
   setMenuOpen(true);
 });
 
@@ -1890,4 +2110,9 @@ menuOverlay?.addEventListener("click", () => {
   menuBtn?.focus();
 });
 
-document.addEventListener("keydown", handleMenuKeydown);
+playAgainButtonEl?.addEventListener("click", restartGame);
+
+window.restartGame = restartGame;
+window.debugFillSpawnSlotsAndTriggerGameOver = debugFillSpawnSlotsAndTriggerGameOver;
+
+document.addEventListener("keydown", handleGlobalKeydown);
