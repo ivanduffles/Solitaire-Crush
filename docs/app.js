@@ -1990,25 +1990,17 @@ async function clearSelectedSequence() {
     statusEl.textContent = "Sequence cleared!";
   }
   if (!spawned) {
-    await renderBoard({ prevRectsOverride: prevRects });
-    return;
+    return renderBoard({ prevRectsOverride: prevRects });
   }
 
   const scoreAnimationPromise = (async () => {
     await playScoreAnimation({ cards: animationCards, ...scoreBreakdown });
     await animateScoreCountUp(oldScore, newScore, scoreEl);
   })();
-  await renderBoard({
+  return renderBoard({
     prevRectsOverride: prevRects,
     awaitScorePromise: scoreAnimationPromise,
   });
-  renderBoard();
-  if (!spawned) {
-    return;
-  }
-  await animateCardMoves(prevRects);
-  await playScoreAnimation({ cards: animationCards, ...scoreBreakdown });
-  await animateScoreCountUp(oldScore, newScore, scoreEl);
 }
 
 function collapseColumns() {
