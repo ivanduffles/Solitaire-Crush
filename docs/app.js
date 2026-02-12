@@ -128,6 +128,15 @@ function debugGameOverLog(message, payload = {}) {
   console.log(`[gameover-debug] ${message}`, payload);
 }
 
+function isDebugUndoEnabled() {
+  return typeof window !== "undefined" && window.__DEBUG_UNDO;
+}
+
+function debugUndoLog(message, payload = {}) {
+  if (!isDebugUndoEnabled()) {
+    return;
+  }
+  console.log(`[undo-debug] ${message}`, payload);
 function isDebugMoveCommitEnabled() {
   return typeof window !== "undefined" && window.__DEBUG_MOVE_COMMIT;
 }
@@ -301,6 +310,26 @@ function animateUndoCardsEnterReverseFall(newCardEls = []) {
 
   return new Promise((resolveAll) => {
     requestAnimationFrame(() => {
+      const animations = newCardEls.map((cardEl) => new Promise((resolve) => {
+        cardEl.classList.add("card--entering");
+        cardEl.style.transform = "";
+        cardEl.style.opacity = "1";
+        let settled = false;
+        const cleanup = () => {
+          if (settled) {
+            return;
+          }
+          settled = true;
+          cardEl.classList.remove("card--entering");
+          cardEl.classList.remove("card--pre-enter");
+          cardEl.style.removeProperty("transform");
+          cardEl.style.removeProperty("opacity");
+          resolve();
+        };
+        cardEl.addEventListener("transitionend", cleanup, { once: true });
+        window.setTimeout(cleanup, 620);
+      }));
+      Promise.all(animations).then(resolveAll);
       requestAnimationFrame(() => {
         const animations = newCardEls.map((cardEl) => new Promise((resolve) => {
           cardEl.classList.add("card--entering");
