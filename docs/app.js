@@ -100,6 +100,8 @@ const swapCountEl = document.getElementById("freeSwapCount");
 const bombCountEl = document.getElementById("freeBombCount");
 const statusEl = document.getElementById("statusMessage");
 const clearSequenceButton = document.getElementById("clearSequenceButton");
+const undoButton = document.getElementById("undoButton");
+const redoButton = document.getElementById("redoButton");
 const freeSwapButton = document.getElementById("freeSwapButton");
 const freeBombButton = document.getElementById("freeBombButton");
 const freeSwapButtonIconEl = freeSwapButton?.querySelector(".hud__icon");
@@ -126,15 +128,138 @@ function debugGameOverLog(message, payload = {}) {
   console.log(`[gameover-debug] ${message}`, payload);
 }
 
+function isDebugUndoEnabled() {
+  return typeof window !== "undefined" && window.__DEBUG_UNDO;
+}
+
+function debugUndoLog(message, payload = {}) {
+  if (!isDebugUndoEnabled()) {
+    return;
+  }
+  console.log(`[undo-debug] ${message}`, payload);
+}
+
 let scoreAnimationActive = false;
 let bombExplosionActive = false;
 const DEBUG_NEW_CARD_ENTER = false;
+const MAX_HISTORY = 50;
+const undoStack = [];
+const redoStack = [];
+let isApplyingHistorySnapshot = false;
 let previousRenderCardIds = new Set();
 let hasRenderedBoard = false;
 const SWIPE_THRESHOLD_RATIO = 0.35;
 const LONG_PRESS_MS = 210;
 const LONG_PRESS_MOVE_TOLERANCE_TOUCH = 10;
 const LONG_PRESS_MOVE_TOLERANCE_MOUSE = 4;
+
+
+// Snapshot-based undo/redo (Memento): each action stores a full game-state checkpoint.
+function cloneSnapshot(value) {
+  if (typeof structuredClone === "function") {
+    return structuredClone(value);
+  }
+  return JSON.parse(JSON.stringify(value));
+}
+
+function exportSnapshot() {
+  return {
+    state: cloneSnapshot(state),
+    statusMessage: statusEl?.textContent || "",
+    gameOverOverlayHidden: gameOverOverlayEl?.hidden ?? true,
+    menuOpen: !(gameMenuModal?.hidden ?? true),
+  };
+}
+
+function importSnapshot(snapshot) {
+  if (!snapshot || !snapshot.state) {
+    return;
+  }
+  Object.keys(state).forEach((key) => {
+    delete state[key];
+  });
+  Object.assign(state, cloneSnapshot(snapshot.state));
+  clearLongPressTimer();
+  state.longPressTimer = null;
+  state.dragSelecting = false;
+  state.dragState = null;
+  boardEl.classList.remove("board--drag-selecting");
+  boardEl.style.touchAction = "";
+  statusEl.textContent = snapshot.statusMessage || "Tap adjacent cards to swap. Tap again to deselect.";
+  setMenuOpen(Boolean(snapshot.menuOpen));
+  if (gameOverOverlayEl) {
+    gameOverOverlayEl.hidden = snapshot.gameOverOverlayHidden ?? !state.gameOver;
+  }
+  if (!state.gameOver) {
+    hideGameOverOverlay();
+  }
+  updateHud();
+  renderBoard();
+}
+
+function updateHistoryButtons() {
+  if (undoButton) {
+    undoButton.disabled = undoStack.length === 0;
+  }
+  if (redoButton) {
+    redoButton.disabled = redoStack.length === 0;
+  }
+}
+
+function pushUndoCheckpoint(reason = "action") {
+  if (isApplyingHistorySnapshot) {
+    return;
+  }
+  undoStack.push(cloneSnapshot(exportSnapshot()));
+  if (undoStack.length > MAX_HISTORY) {
+    undoStack.shift();
+  }
+  redoStack.length = 0;
+  debugUndoLog("checkpoint pushed", { reason, undo: undoStack.length, redo: redoStack.length });
+  updateHistoryButtons();
+}
+
+function cancelAnimationsAndUnlockInput() {
+  clearLongPressTimer();
+  state.dragState = null;
+  state.dragSelecting = false;
+  state.doubleTapState = null;
+  state.animateMoves = false;
+  scoreAnimationActive = false;
+  bombExplosionActive = false;
+  boardEl.classList.remove("board--drag-selecting");
+  boardEl.style.touchAction = "";
+  document.querySelectorAll(".fx-layer, .fx-particles, .score-overlay").forEach((node) => node.remove());
+  if (typeof document.getAnimations === "function") {
+    document.getAnimations().forEach((animation) => animation.cancel());
+  }
+}
+
+function undo() {
+  if (!undoStack.length) {
+    return;
+  }
+  cancelAnimationsAndUnlockInput();
+  redoStack.push(cloneSnapshot(exportSnapshot()));
+  isApplyingHistorySnapshot = true;
+  importSnapshot(undoStack.pop());
+  isApplyingHistorySnapshot = false;
+  debugUndoLog("undo", { undo: undoStack.length, redo: redoStack.length });
+  updateHistoryButtons();
+}
+
+function redo() {
+  if (!redoStack.length) {
+    return;
+  }
+  cancelAnimationsAndUnlockInput();
+  undoStack.push(cloneSnapshot(exportSnapshot()));
+  isApplyingHistorySnapshot = true;
+  importSnapshot(redoStack.pop());
+  isApplyingHistorySnapshot = false;
+  debugUndoLog("redo", { undo: undoStack.length, redo: redoStack.length });
+  updateHistoryButtons();
+}
 
 function animateElement(element, keyframes, options) {
   if (element.animate) {
@@ -1284,6 +1409,7 @@ function handleDragSwap(targetRow, targetCol) {
     statusEl.textContent = "Cards must be orthogonally adjacent.";
     return;
   }
+  pushUndoCheckpoint("drag-swap");
   state.animateMoves = true;
   clearSequenceSelection();
   if (!state.grid[targetRow][targetCol]) {
@@ -1464,6 +1590,7 @@ function handleSwapperTap(row, col) {
   }
 
   const swapperCard = state.grid[sourceRow][sourceCol];
+  pushUndoCheckpoint("swapper-swap");
   state.animateMoves = true;
   clearSequenceSelection();
   swapCards(sourceRow, sourceCol, row, col);
@@ -1497,6 +1624,7 @@ function handleSwapModeTap(row, col) {
     renderBoard();
     return;
   }
+  pushUndoCheckpoint("free-swap");
   state.animateMoves = true;
   swapCards(firstRow, firstCol, row, col);
   state.pendingSwap = null;
@@ -1925,6 +2053,7 @@ async function clearSingleCard(row, col, consumesFreeBomb) {
     return;
   }
 
+  pushUndoCheckpoint(consumesFreeBomb ? "free-bomb" : "bomb-card");
   state.bombTarget = null;
 
   const bombCardEl = boardEl.querySelector(`.card[data-row="${row}"][data-col="${col}"]`);
@@ -1971,6 +2100,8 @@ async function clearSelectedSequence() {
     renderBoard();
     return;
   }
+
+  pushUndoCheckpoint("sequence-clear");
 
   const selectedCells = [...state.sequenceSelection];
   const animationCards = getSequenceCardSnapshots(selectedCells);
@@ -2064,6 +2195,9 @@ function init() {
   updateHud();
   statusEl.textContent = "Tap adjacent cards to swap. Tap again to deselect.";
   renderBoard();
+  undoStack.length = 0;
+  redoStack.length = 0;
+  updateHistoryButtons();
 }
 
 function restartGame() {
@@ -2108,6 +2242,7 @@ function updateHud(options = {}) {
   bombCountEl.textContent = state.freeBombCount;
   freeSwapButton.setAttribute("aria-pressed", state.swapMode ? "true" : "false");
   freeBombButton.setAttribute("aria-pressed", state.bombMode ? "true" : "false");
+  updateHistoryButtons();
 }
 
 function setMenuOpen(isOpen) {
@@ -2118,6 +2253,20 @@ function setMenuOpen(isOpen) {
 }
 
 function handleGlobalKeydown(event) {
+  const isUndoShortcut = (event.key === "z" || event.key === "Z") && (event.ctrlKey || event.metaKey) && !event.shiftKey;
+  const isRedoShortcut =
+    ((event.key === "z" || event.key === "Z") && (event.ctrlKey || event.metaKey) && event.shiftKey) ||
+    (event.key === "y" || event.key === "Y") && event.ctrlKey;
+  if (isUndoShortcut) {
+    event.preventDefault();
+    undo();
+    return;
+  }
+  if (isRedoShortcut) {
+    event.preventDefault();
+    redo();
+    return;
+  }
   if (event.key !== "Escape") {
     return;
   }
@@ -2131,6 +2280,9 @@ function handleGlobalKeydown(event) {
   setMenuOpen(false);
   menuBtn?.focus();
 }
+
+undoButton?.addEventListener("click", undo);
+redoButton?.addEventListener("click", redo);
 
 freeSwapButton.addEventListener("click", () => {
   if (scoreAnimationActive || bombExplosionActive || isInputLocked() || state.freeSwapCount <= 0) {
@@ -2210,5 +2362,10 @@ playAgainButtonEl?.addEventListener("click", restartGame);
 
 window.restartGame = restartGame;
 window.debugFillSpawnSlotsAndTriggerGameOver = debugFillSpawnSlotsAndTriggerGameOver;
-
+// Manual undo/redo verification script:
+// 1) Make a swap, undo, redo.
+// 2) Clear a sequence, undo.
+// 3) Use bomb, undo.
+// 4) Undo then do new action and confirm redo is cleared.
+// 5) Trigger undo/redo during active effects and verify no stuck transforms/overlays.
 document.addEventListener("keydown", handleGlobalKeydown);

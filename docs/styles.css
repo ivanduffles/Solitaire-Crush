@@ -55,6 +55,9 @@ body {
 .topbar-left {
   justify-self: start;
   min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: clamp(6px, 1.8vw, 12px);
 }
 
 
@@ -158,6 +161,26 @@ body {
 .hud__button[aria-pressed="true"] {
   background: #2563eb;
   border-color: #1d4ed8;
+}
+
+.hud__history {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.hud__button--history {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  font-size: 22px;
+  line-height: 1;
+  background: transparent;
+}
+
+.hud__button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .hud__menu-button {
