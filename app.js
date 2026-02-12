@@ -172,6 +172,107 @@ function buildSerializableStateSnapshot() {
   };
 }
 
+function getCardIdsFromGrid(grid) {
+  const ids = new Set();
+  grid.forEach((row) => {
+    row.forEach((card) => {
+      if (card?.id) {
+        ids.add(card.id);
+      }
+    });
+  });
+  return ids;
+}
+
+function getCardElementMap() {
+  const map = new Map();
+  boardEl.querySelectorAll(".card[data-card-id]").forEach((cardEl) => {
+    map.set(cardEl.dataset.cardId, cardEl);
+  });
+  return map;
+}
+
+function animateUndoRemovedCards({ cardEls = [], reason = "" }) {
+  if (!cardEls.length) {
+    return Promise.resolve();
+  }
+  const layer = document.createElement("div");
+  layer.className = "fx-layer";
+  layer.style.pointerEvents = "none";
+  document.body.appendChild(layer);
+  const isBombUndo = reason.includes("bomb");
+
+  const animations = cardEls.map((sourceEl) => {
+    const rect = sourceEl.getBoundingClientRect();
+    const ghost = sourceEl.cloneNode(true);
+    ghost.classList.remove("card--animating", "card--entering", "card--pre-enter");
+    ghost.style.position = "fixed";
+    ghost.style.left = `${rect.left}px`;
+    ghost.style.top = `${rect.top}px`;
+    ghost.style.width = `${rect.width}px`;
+    ghost.style.height = `${rect.height}px`;
+    ghost.style.margin = "0";
+    ghost.style.zIndex = "1700";
+    ghost.style.pointerEvents = "none";
+    layer.appendChild(ghost);
+
+    const keyframes = isBombUndo
+      ? [
+        { opacity: 1, transform: "translate(0px, 0px) scale(1)", filter: "brightness(1)" },
+        { opacity: 0, transform: "translate(0px, -18px) scale(1.3)", filter: "brightness(2.1) blur(1.5px)" },
+      ]
+      : [
+        { opacity: 1, transform: "translate(0px, 0px)", filter: "none" },
+        { opacity: 0, transform: `translate(0px, ${-Math.max(34, rect.height * 0.9)}px)`, filter: "none" },
+      ];
+
+    return animateElement(ghost, keyframes, {
+      duration: isBombUndo ? 360 : 320,
+      easing: isBombUndo ? "cubic-bezier(.2,.7,.3,1)" : "ease-in",
+      fill: "forwards",
+    }).finally(() => {
+      ghost.remove();
+    });
+  });
+
+  return Promise.all(animations).finally(() => {
+    layer.remove();
+  });
+}
+
+function animateHistoryCardEntry(newCardEls = [], historyTransition = null, reason = "") {
+  if (!newCardEls.length) {
+    return Promise.resolve();
+  }
+  const isUndo = historyTransition === "undo";
+  const isBombUndo = isUndo && reason.includes("bomb");
+  const keyframes = isBombUndo
+    ? [
+      { opacity: 0, transform: "scale(0.18)", filter: "brightness(1.9) blur(1.5px)" },
+      { opacity: 1, transform: "scale(1)", filter: "brightness(1) blur(0px)" },
+    ]
+    : [
+      { opacity: 0, transform: isUndo ? "scale(0.84)" : "scale(0.92)" },
+      { opacity: 1, transform: "scale(1)" },
+    ];
+
+  const animations = newCardEls.map((cardEl) => {
+    cardEl.classList.remove("card--pre-enter");
+    cardEl.style.opacity = "0";
+    return animateElement(cardEl, keyframes, {
+      duration: isBombUndo ? 420 : 260,
+      easing: isBombUndo ? "cubic-bezier(.2,.9,.22,1)" : "ease-out",
+      fill: "forwards",
+    }).finally(() => {
+      cardEl.style.removeProperty("opacity");
+      cardEl.style.removeProperty("transform");
+      cardEl.style.removeProperty("filter");
+    });
+  });
+
+  return Promise.all(animations);
+}
+
 function exportSnapshot() {
   return {
     state: cloneSnapshot(buildSerializableStateSnapshot()),
@@ -181,10 +282,15 @@ function exportSnapshot() {
   };
 }
 
-function importSnapshot(snapshot) {
+function importSnapshot(snapshot, options = {}) {
   if (!snapshot || !snapshot.state) {
-    return;
+    return Promise.resolve();
   }
+  const { historyTransition = null, historyReason = "" } = options;
+  const previousRects = historyTransition ? getCardRects() : null;
+  const previousCardElsById = historyTransition === "undo" ? getCardElementMap() : null;
+  const targetCardIds = historyTransition === "undo" ? getCardIdsFromGrid(snapshot.state.grid || []) : null;
+
   Object.keys(state).forEach((key) => {
     delete state[key];
   });
@@ -204,7 +310,18 @@ function importSnapshot(snapshot) {
     hideGameOverOverlay();
   }
   updateHud();
-  renderBoard();
+
+  const removedCardEls = historyTransition === "undo" && previousCardElsById && targetCardIds
+    ? [...previousCardElsById.entries()]
+      .filter(([cardId]) => !targetCardIds.has(cardId))
+      .map(([, el]) => el)
+    : [];
+
+  return Promise.resolve(renderBoard({
+    prevRectsOverride: previousRects,
+    historyTransition,
+    historyReason,
+  })).then(() => animateUndoRemovedCards({ cardEls: removedCardEls, reason: historyReason }));
 }
 
 function updateHistoryButtons() {
@@ -220,7 +337,7 @@ function pushUndoCheckpoint(reason = "action") {
   if (isApplyingHistorySnapshot) {
     return;
   }
-  undoStack.push(cloneSnapshot(exportSnapshot()));
+  undoStack.push({ snapshot: cloneSnapshot(exportSnapshot()), reason });
   if (undoStack.length > MAX_HISTORY) {
     undoStack.shift();
   }
@@ -245,27 +362,35 @@ function cancelAnimationsAndUnlockInput() {
   }
 }
 
-function undo() {
+async function undo() {
   if (!undoStack.length) {
     return;
   }
   cancelAnimationsAndUnlockInput();
-  redoStack.push(cloneSnapshot(exportSnapshot()));
+  const entry = undoStack.pop();
+  redoStack.push({ snapshot: cloneSnapshot(exportSnapshot()), reason: entry.reason });
   isApplyingHistorySnapshot = true;
-  importSnapshot(undoStack.pop());
+  await importSnapshot(entry.snapshot, {
+    historyTransition: "undo",
+    historyReason: entry.reason || "",
+  });
   isApplyingHistorySnapshot = false;
   debugUndoLog("undo", { undo: undoStack.length, redo: redoStack.length });
   updateHistoryButtons();
 }
 
-function redo() {
+async function redo() {
   if (!redoStack.length) {
     return;
   }
   cancelAnimationsAndUnlockInput();
-  undoStack.push(cloneSnapshot(exportSnapshot()));
+  const entry = redoStack.pop();
+  undoStack.push({ snapshot: cloneSnapshot(exportSnapshot()), reason: entry.reason });
   isApplyingHistorySnapshot = true;
-  importSnapshot(redoStack.pop());
+  await importSnapshot(entry.snapshot, {
+    historyTransition: "redo",
+    historyReason: entry.reason || "",
+  });
   isApplyingHistorySnapshot = false;
   debugUndoLog("redo", { undo: undoStack.length, redo: redoStack.length });
   updateHistoryButtons();
@@ -866,7 +991,12 @@ function buildJokerCardContent() {
 }
 
 function renderBoard(options = {}) {
-  const { prevRectsOverride = null, awaitScorePromise = null } = options;
+  const {
+    prevRectsOverride = null,
+    awaitScorePromise = null,
+    historyTransition = null,
+    historyReason = "",
+  } = options;
   const prevRects = prevRectsOverride || (state.animateMoves ? getCardRects() : null);
   const currentCardIds = new Set();
   const newCardEls = [];
@@ -971,7 +1101,12 @@ function renderBoard(options = {}) {
   const scoreWaitPromise = awaitScorePromise || Promise.resolve();
   const animationSequencePromise = Promise.resolve(scoreWaitPromise)
     .then(() => boardMovePromise)
-    .then(() => animateNewCardsEnter(newCardEls));
+    .then(() => {
+      if (historyTransition) {
+        return animateHistoryCardEntry(newCardEls, historyTransition, historyReason);
+      }
+      return animateNewCardsEnter(newCardEls);
+    });
 
   previousRenderCardIds = currentCardIds;
   hasRenderedBoard = true;
