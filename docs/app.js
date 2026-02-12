@@ -1554,12 +1554,15 @@ function animateNewCardsEnter(newCardEls = []) {
 
   newCardEls.forEach((cardEl) => {
     const nextRect = cardEl.getBoundingClientRect();
-    const startX = window.innerWidth / 2;
-    const startY = -nextRect.height - 20;
-    const deltaX = startX - (nextRect.left + nextRect.width / 2);
-    const deltaY = startY - (nextRect.top + nextRect.height / 2);
+    const startY = -nextRect.height - 24;
+    const deltaY = startY - nextRect.top;
+    if (DEBUG_NEW_CARD_ENTER) {
+      console.log(
+        `[new-card-enter] entering new card ${cardEl.dataset.cardId} col=${cardEl.dataset.col} deltaY=${Math.round(deltaY)}`
+      );
+    }
     cardEl.style.opacity = "0";
-    cardEl.style.transform = `translate(${deltaX}px, ${deltaY}px)`;
+    cardEl.style.transform = `translate(0px, ${deltaY}px)`;
   });
 
   return new Promise((resolveAll) => {
