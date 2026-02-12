@@ -100,6 +100,8 @@ const swapCountEl = document.getElementById("freeSwapCount");
 const bombCountEl = document.getElementById("freeBombCount");
 const statusEl = document.getElementById("statusMessage");
 const clearSequenceButton = document.getElementById("clearSequenceButton");
+const undoButton = document.getElementById("undoButton");
+const redoButton = document.getElementById("redoButton");
 const freeSwapButton = document.getElementById("freeSwapButton");
 const freeBombButton = document.getElementById("freeBombButton");
 const freeSwapButtonIconEl = freeSwapButton?.querySelector(".hud__icon");
@@ -153,12 +155,332 @@ let bombExplosionActive = false;
 let autoResolutionPromise = Promise.resolve();
 let autoResolutionActive = false;
 const DEBUG_NEW_CARD_ENTER = false;
+const MAX_HISTORY = 50;
+const undoStack = [];
+const redoStack = [];
+let isApplyingHistorySnapshot = false;
 let previousRenderCardIds = new Set();
 let hasRenderedBoard = false;
 const SWIPE_THRESHOLD_RATIO = 0.35;
 const LONG_PRESS_MS = 210;
 const LONG_PRESS_MOVE_TOLERANCE_TOUCH = 10;
 const LONG_PRESS_MOVE_TOLERANCE_MOUSE = 4;
+
+
+// Snapshot-based undo/redo (Memento): each action stores a full game-state checkpoint.
+function cloneSnapshot(value) {
+  if (typeof structuredClone === "function") {
+    return structuredClone(value);
+  }
+  return JSON.parse(JSON.stringify(value));
+}
+
+function buildSerializableStateSnapshot() {
+  return {
+    ...state,
+    // Runtime-only values can contain non-serializable DOM references during drag operations.
+    dragState: null,
+    longPressTimer: null,
+    dragStartCard: null,
+  };
+}
+
+function getCardIdsFromGrid(grid) {
+  const ids = new Set();
+  grid.forEach((row) => {
+    row.forEach((card) => {
+      if (card?.id) {
+        ids.add(card.id);
+      }
+    });
+  });
+  return ids;
+}
+
+function getCardElementMap() {
+  const map = new Map();
+  boardEl.querySelectorAll(".card[data-card-id]").forEach((cardEl) => {
+    map.set(cardEl.dataset.cardId, cardEl);
+  });
+  return map;
+}
+
+function animateUndoRemovedCards({ cardEls = [], reason = "" }) {
+  if (!cardEls.length) {
+    return Promise.resolve();
+  }
+  const layer = document.createElement("div");
+  layer.className = "fx-layer";
+  layer.style.pointerEvents = "none";
+  document.body.appendChild(layer);
+  const isBombUndo = reason.includes("bomb");
+
+  const animations = cardEls.map((sourceEl) => {
+    const rect = sourceEl.getBoundingClientRect();
+    const ghost = sourceEl.cloneNode(true);
+    ghost.classList.remove("card--animating", "card--entering", "card--pre-enter");
+    ghost.style.position = "fixed";
+    ghost.style.left = `${rect.left}px`;
+    ghost.style.top = `${rect.top}px`;
+    ghost.style.width = `${rect.width}px`;
+    ghost.style.height = `${rect.height}px`;
+    ghost.style.margin = "0";
+    ghost.style.zIndex = "1700";
+    ghost.style.pointerEvents = "none";
+    layer.appendChild(ghost);
+
+    const keyframes = isBombUndo
+      ? [
+        { opacity: 1, transform: "translate(0px, 0px) scale(1)", filter: "brightness(1)" },
+        { opacity: 0, transform: "translate(0px, -18px) scale(1.3)", filter: "brightness(2.1) blur(1.5px)" },
+      ]
+      : [
+        { opacity: 1, transform: "translate(0px, 0px)", filter: "none" },
+        { opacity: 0, transform: `translate(0px, ${-Math.max(34, rect.height * 0.9)}px)`, filter: "none" },
+      ];
+
+    return animateElement(ghost, keyframes, {
+      duration: isBombUndo ? 360 : 320,
+      easing: isBombUndo ? "cubic-bezier(.2,.7,.3,1)" : "ease-in",
+      fill: "forwards",
+    }).finally(() => {
+      ghost.remove();
+    });
+  });
+
+  return Promise.all(animations).finally(() => {
+    layer.remove();
+  });
+}
+
+function animateHistoryCardEntry(newCardEls = [], historyTransition = null, reason = "") {
+  if (!newCardEls.length) {
+    return Promise.resolve();
+  }
+  const isUndo = historyTransition === "undo";
+  const isBombUndo = isUndo && reason.includes("bomb");
+  const keyframes = isBombUndo
+    ? [
+      { opacity: 0, transform: "scale(0.18)", filter: "brightness(1.9) blur(1.5px)" },
+      { opacity: 1, transform: "scale(1)", filter: "brightness(1) blur(0px)" },
+    ]
+    : [
+      { opacity: 0, transform: isUndo ? "scale(0.84)" : "scale(0.92)" },
+      { opacity: 1, transform: "scale(1)" },
+    ];
+
+  const animations = newCardEls.map((cardEl) => {
+    cardEl.classList.remove("card--pre-enter");
+    cardEl.style.opacity = "0";
+    return animateElement(cardEl, keyframes, {
+      duration: isBombUndo ? 420 : 260,
+      easing: isBombUndo ? "cubic-bezier(.2,.9,.22,1)" : "ease-out",
+      fill: "forwards",
+    }).finally(() => {
+      cardEl.style.removeProperty("opacity");
+      cardEl.style.removeProperty("transform");
+      cardEl.style.removeProperty("filter");
+    });
+  });
+
+  return Promise.all(animations);
+}
+
+function animateUndoCardsEnterReverseFall(newCardEls = []) {
+  if (!newCardEls.length) {
+    return Promise.resolve();
+  }
+
+  newCardEls.forEach((cardEl) => {
+    const nextRect = cardEl.getBoundingClientRect();
+    const travel = Math.max(nextRect.height + 24, 40);
+    cardEl.classList.remove("card--pre-enter");
+    cardEl.style.opacity = "0";
+    cardEl.style.transform = `translate(0px, ${travel}px)`;
+  });
+
+  return new Promise((resolveAll) => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const animations = newCardEls.map((cardEl) => new Promise((resolve) => {
+          cardEl.classList.add("card--entering");
+          cardEl.style.transform = "";
+          cardEl.style.opacity = "1";
+          let settled = false;
+          const cleanup = () => {
+            if (settled) {
+              return;
+            }
+            settled = true;
+            cardEl.classList.remove("card--entering");
+            cardEl.classList.remove("card--pre-enter");
+            cardEl.style.removeProperty("transform");
+            cardEl.style.removeProperty("opacity");
+            resolve();
+          };
+          cardEl.addEventListener("transitionend", cleanup, { once: true });
+          window.setTimeout(cleanup, 620);
+        }));
+        Promise.all(animations).then(resolveAll);
+      });
+    });
+  });
+}
+
+function exportSnapshot() {
+  return {
+    state: cloneSnapshot(buildSerializableStateSnapshot()),
+    statusMessage: statusEl?.textContent || "",
+    gameOverOverlayHidden: gameOverOverlayEl?.hidden ?? true,
+    menuOpen: !(gameMenuModal?.hidden ?? true),
+  };
+}
+
+function importSnapshot(snapshot, options = {}) {
+  if (!snapshot || !snapshot.state) {
+    return Promise.resolve();
+  }
+  const { historyTransition = null, historyReason = "" } = options;
+  const previousScore = state.score;
+  const previousRects = historyTransition ? getCardRects() : null;
+  const previousCardElsById = historyTransition ? getCardElementMap() : null;
+  const targetCardIds = historyTransition ? getCardIdsFromGrid(snapshot.state.grid || []) : null;
+
+  Object.keys(state).forEach((key) => {
+    delete state[key];
+  });
+  Object.assign(state, cloneSnapshot(snapshot.state));
+  clearLongPressTimer();
+  state.longPressTimer = null;
+  state.dragSelecting = false;
+  state.dragState = null;
+  boardEl.classList.remove("board--drag-selecting");
+  boardEl.style.touchAction = "";
+  statusEl.textContent = snapshot.statusMessage || "Tap adjacent cards to swap. Tap again to deselect.";
+  setMenuOpen(Boolean(snapshot.menuOpen));
+  if (gameOverOverlayEl) {
+    gameOverOverlayEl.hidden = snapshot.gameOverOverlayHidden ?? !state.gameOver;
+  }
+  if (!state.gameOver) {
+    hideGameOverOverlay();
+  }
+  updateHud();
+
+  const removedCardEls = historyTransition && previousCardElsById && targetCardIds
+    ? [...previousCardElsById.entries()]
+      .filter(([cardId]) => !targetCardIds.has(cardId))
+      .map(([, el]) => el)
+    : [];
+
+  const redoBombExplosionRect =
+    historyTransition === "redo" && historyReason.includes("bomb") && removedCardEls.length
+      ? removedCardEls[0].getBoundingClientRect()
+      : null;
+
+  const renderHistoryBoard = () => renderBoard({
+    prevRectsOverride: previousRects,
+    historyTransition,
+    historyReason,
+  });
+
+  const redoBombPrelude = redoBombExplosionRect
+    ? playBombExplosion({
+      centerRect: redoBombExplosionRect,
+      affectedCardEls: removedCardEls,
+    })
+    : Promise.resolve();
+
+  return Promise.resolve(redoBombPrelude)
+    .then(() => renderHistoryBoard())
+    .then(() => {
+      if (historyTransition === "undo") {
+        return animateUndoRemovedCards({ cardEls: removedCardEls, reason: historyReason });
+      }
+      return undefined;
+    })
+    .then(() => {
+      if (
+        historyTransition === "redo" &&
+        historyReason === "sequence-clear" &&
+        state.score > previousScore
+      ) {
+        return animateScoreCountUp(previousScore, state.score, scoreEl);
+      }
+      return undefined;
+    });
+}
+
+function updateHistoryButtons() {
+  if (undoButton) {
+    undoButton.disabled = undoStack.length === 0;
+  }
+  if (redoButton) {
+    redoButton.disabled = redoStack.length === 0;
+  }
+}
+
+function pushUndoCheckpoint(reason = "action") {
+  if (isApplyingHistorySnapshot) {
+    return;
+  }
+  undoStack.push({ snapshot: cloneSnapshot(exportSnapshot()), reason });
+  if (undoStack.length > MAX_HISTORY) {
+    undoStack.shift();
+  }
+  redoStack.length = 0;
+  debugUndoLog("checkpoint pushed", { reason, undo: undoStack.length, redo: redoStack.length });
+  updateHistoryButtons();
+}
+
+function cancelAnimationsAndUnlockInput() {
+  clearLongPressTimer();
+  state.dragState = null;
+  state.dragSelecting = false;
+  state.doubleTapState = null;
+  state.animateMoves = false;
+  scoreAnimationActive = false;
+  bombExplosionActive = false;
+  boardEl.classList.remove("board--drag-selecting");
+  boardEl.style.touchAction = "";
+  document.querySelectorAll(".fx-layer, .fx-particles, .score-overlay").forEach((node) => node.remove());
+  if (typeof document.getAnimations === "function") {
+    document.getAnimations().forEach((animation) => animation.cancel());
+  }
+}
+
+async function undo() {
+  if (!undoStack.length) {
+    return;
+  }
+  cancelAnimationsAndUnlockInput();
+  const entry = undoStack.pop();
+  redoStack.push({ snapshot: cloneSnapshot(exportSnapshot()), reason: entry.reason });
+  isApplyingHistorySnapshot = true;
+  await importSnapshot(entry.snapshot, {
+    historyTransition: "undo",
+    historyReason: entry.reason || "",
+  });
+  isApplyingHistorySnapshot = false;
+  debugUndoLog("undo", { undo: undoStack.length, redo: redoStack.length });
+  updateHistoryButtons();
+}
+
+async function redo() {
+  if (!redoStack.length) {
+    return;
+  }
+  cancelAnimationsAndUnlockInput();
+  const entry = redoStack.pop();
+  undoStack.push({ snapshot: cloneSnapshot(exportSnapshot()), reason: entry.reason });
+  isApplyingHistorySnapshot = true;
+  await importSnapshot(entry.snapshot, {
+    historyTransition: "redo",
+    historyReason: entry.reason || "",
+  });
+  isApplyingHistorySnapshot = false;
+  debugUndoLog("redo", { undo: undoStack.length, redo: redoStack.length });
+  updateHistoryButtons();
+}
 
 function animateElement(element, keyframes, options) {
   if (element.animate) {
@@ -755,7 +1077,12 @@ function buildJokerCardContent() {
 }
 
 function renderBoard(options = {}) {
-  const { prevRectsOverride = null, awaitScorePromise = null } = options;
+  const {
+    prevRectsOverride = null,
+    awaitScorePromise = null,
+    historyTransition = null,
+    historyReason = "",
+  } = options;
   const prevRects = prevRectsOverride || (state.animateMoves ? getCardRects() : null);
   const currentCardIds = new Set();
   const newCardEls = [];
@@ -860,7 +1187,18 @@ function renderBoard(options = {}) {
   const scoreWaitPromise = awaitScorePromise || Promise.resolve();
   const animationSequencePromise = Promise.resolve(scoreWaitPromise)
     .then(() => boardMovePromise)
-    .then(() => animateNewCardsEnter(newCardEls));
+    .then(() => {
+      if (historyTransition === "redo") {
+        return animateNewCardsEnter(newCardEls);
+      }
+      if (historyTransition === "undo") {
+        return animateUndoCardsEnterReverseFall(newCardEls);
+      }
+      if (historyTransition) {
+        return animateHistoryCardEntry(newCardEls, historyTransition, historyReason);
+      }
+      return animateNewCardsEnter(newCardEls);
+    });
 
   previousRenderCardIds = currentCardIds;
   hasRenderedBoard = true;
@@ -1306,6 +1644,8 @@ async function handleDragSwap(targetRow, targetCol) {
     statusEl.textContent = "Cards must be orthogonally adjacent.";
     return;
   }
+  pushUndoCheckpoint("drag-swap");
+  state.animateMoves = true;
   clearSequenceSelection();
 
   // Signature-based move commits prevent false positives where a tentative drag
@@ -1550,6 +1890,7 @@ async function handleSwapperTap(row, col) {
   }
 
   const swapperCard = state.grid[sourceRow][sourceCol];
+  pushUndoCheckpoint("swapper-swap");
   state.animateMoves = true;
   clearSequenceSelection();
   swapCards(sourceRow, sourceCol, row, col);
@@ -1581,6 +1922,7 @@ async function handleSwapModeTap(row, col) {
     await renderBoard();
     return;
   }
+  pushUndoCheckpoint("free-swap");
   state.animateMoves = true;
   swapCards(firstRow, firstCol, row, col);
   state.pendingSwap = null;
@@ -2089,6 +2431,7 @@ async function clearSingleCard(row, col, consumesFreeBomb) {
     return;
   }
 
+  pushUndoCheckpoint(consumesFreeBomb ? "free-bomb" : "bomb-card");
   state.bombTarget = null;
 
   const bombCardEl = boardEl.querySelector(`.card[data-row="${row}"][data-col="${col}"]`);
@@ -2131,6 +2474,8 @@ async function clearSelectedSequence() {
     await renderBoard();
     return;
   }
+
+  pushUndoCheckpoint("sequence-clear");
 
   const selectedCells = [...state.sequenceSelection];
   const animationCards = getSequenceCardSnapshots(selectedCells);
@@ -2227,6 +2572,9 @@ function init() {
   updateHud();
   statusEl.textContent = "Tap adjacent cards to swap. Tap again to deselect.";
   renderBoard();
+  undoStack.length = 0;
+  redoStack.length = 0;
+  updateHistoryButtons();
 }
 
 function restartGame() {
@@ -2271,6 +2619,7 @@ function updateHud(options = {}) {
   bombCountEl.textContent = state.freeBombCount;
   freeSwapButton.setAttribute("aria-pressed", state.swapMode ? "true" : "false");
   freeBombButton.setAttribute("aria-pressed", state.bombMode ? "true" : "false");
+  updateHistoryButtons();
 }
 
 function setMenuOpen(isOpen) {
@@ -2281,6 +2630,20 @@ function setMenuOpen(isOpen) {
 }
 
 function handleGlobalKeydown(event) {
+  const isUndoShortcut = (event.key === "z" || event.key === "Z") && (event.ctrlKey || event.metaKey) && !event.shiftKey;
+  const isRedoShortcut =
+    ((event.key === "z" || event.key === "Z") && (event.ctrlKey || event.metaKey) && event.shiftKey) ||
+    (event.key === "y" || event.key === "Y") && event.ctrlKey;
+  if (isUndoShortcut) {
+    event.preventDefault();
+    undo();
+    return;
+  }
+  if (isRedoShortcut) {
+    event.preventDefault();
+    redo();
+    return;
+  }
   if (event.key !== "Escape") {
     return;
   }
@@ -2294,6 +2657,9 @@ function handleGlobalKeydown(event) {
   setMenuOpen(false);
   menuBtn?.focus();
 }
+
+undoButton?.addEventListener("click", undo);
+redoButton?.addEventListener("click", redo);
 
 freeSwapButton.addEventListener("click", () => {
   if (scoreAnimationActive || bombExplosionActive || isInputLocked() || state.freeSwapCount <= 0) {
@@ -2373,5 +2739,10 @@ playAgainButtonEl?.addEventListener("click", restartGame);
 
 window.restartGame = restartGame;
 window.debugFillSpawnSlotsAndTriggerGameOver = debugFillSpawnSlotsAndTriggerGameOver;
-
+// Manual undo/redo verification script:
+// 1) Make a swap, undo, redo.
+// 2) Clear a sequence, undo.
+// 3) Use bomb, undo.
+// 4) Undo then do new action and confirm redo is cleared.
+// 5) Trigger undo/redo during active effects and verify no stuck transforms/overlays.
 document.addEventListener("keydown", handleGlobalKeydown);

@@ -45,8 +45,14 @@
       </section>
 
       <footer class="status">
-        <div id="statusMessage">Tap adjacent cards to swap. Tap again to deselect.</div>
-        <button class="clear-button" id="clearSequenceButton" type="button" hidden>Clear</button>
+        <div class="status__left" aria-label="History controls">
+          <button class="hud__button hud__button--history" id="undoButton" type="button" aria-label="Undo">⟲</button>
+          <button class="hud__button hud__button--history" id="redoButton" type="button" aria-label="Redo">⟳</button>
+        </div>
+        <div class="status__middle" id="statusMessage">Tap adjacent cards to swap. Tap again to deselect.</div>
+        <div class="status__right">
+          <button class="clear-button" id="clearSequenceButton" type="button" hidden>Clear</button>
+        </div>
       </footer>
     </main>
 
