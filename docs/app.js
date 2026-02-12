@@ -287,6 +287,7 @@ function importSnapshot(snapshot, options = {}) {
     return Promise.resolve();
   }
   const { historyTransition = null, historyReason = "" } = options;
+  const previousScore = state.score;
   const previousRects = historyTransition ? getCardRects() : null;
   const previousCardElsById = historyTransition ? getCardElementMap() : null;
   const targetCardIds = historyTransition ? getCardIdsFromGrid(snapshot.state.grid || []) : null;
@@ -336,6 +337,16 @@ function importSnapshot(snapshot, options = {}) {
     .then(() => {
       if (redoBombExplosionRect) {
         return playBombExplosion({ centerRect: redoBombExplosionRect, affectedCardEls: [] });
+      }
+      return undefined;
+    })
+    .then(() => {
+      if (
+        historyTransition === "redo" &&
+        historyReason === "sequence-clear" &&
+        state.score > previousScore
+      ) {
+        return animateScoreCountUp(previousScore, state.score, scoreEl);
       }
       return undefined;
     });
