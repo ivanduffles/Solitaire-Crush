@@ -2136,14 +2136,20 @@ async function clearSelectedSequence() {
   updateHud({ preserveScore: true });
   statusEl.textContent = "Sequence cleared!";
 
+  // Re-render immediately so cleared source cards are removed from the board
+  // before overlay clones animate, avoiding visible duplicates.
+  await renderBoard();
+
+  const scoreCountPromise = animateScoreCountUp(oldScore, newScore, scoreEl);
   await playScoreAnimation({ cards: animationCards, ...scoreBreakdown });
-  await animateScoreCountUp(oldScore, newScore, scoreEl);
 
   await runAutoResolutionFlow({
     reason: "after-sequence-clear",
     spawnContext: "sequence-clear",
     prevRectsOverride: prevRects,
   });
+
+  await scoreCountPromise;
 }
 
 function collapseColumns() {
