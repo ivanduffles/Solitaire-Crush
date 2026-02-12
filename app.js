@@ -1303,43 +1303,29 @@ function handleDragSwap(targetRow, targetCol) {
 
   if (!state.grid[targetRow][targetCol]) {
     moveCardToEmpty(startRow, startCol, targetRow, targetCol);
-    const postSignature = getGridSignature(state.grid);
-    const committed = commitMoveIfChanged(preSignature, postSignature, {
+    const committed = commitMoveFromSignatures(preSignature, {
       action: "move-to-empty",
       from: { row: startRow, col: startCol },
       to: { row: targetRow, col: targetCol },
+      successContext: "move-to-empty",
+      successMessage: "Move complete. Card dropped.",
     });
     if (!committed) {
-      state.animateMoves = false;
-      statusEl.textContent = "Invalid move.";
-      return;
-    }
-
-    state.animateMoves = true;
-    state.chainMultiplier = 1;
-    if (spawnCardOrGameOver("move-to-empty")) {
-      statusEl.textContent = "Move complete. Card dropped.";
+      statusEl.textContent = "Move cancelled.";
     }
     return;
   }
 
   swapCards(startRow, startCol, targetRow, targetCol);
-  const postSignature = getGridSignature(state.grid);
-  const committed = commitMoveIfChanged(preSignature, postSignature, {
+  const committed = commitMoveFromSignatures(preSignature, {
     action: "drag-swap",
     from: { row: startRow, col: startCol },
     to: { row: targetRow, col: targetCol },
+    successContext: "drag-swap",
+    successMessage: "Swap complete. Card dropped.",
   });
   if (!committed) {
-    state.animateMoves = false;
-    statusEl.textContent = "Invalid move.";
-    return;
-  }
-
-  state.animateMoves = true;
-  state.chainMultiplier = 1;
-  if (spawnCardOrGameOver("drag-swap")) {
-    statusEl.textContent = "Swap complete. Card dropped.";
+    statusEl.textContent = "Move cancelled.";
   }
 }
 
@@ -1359,6 +1345,33 @@ function commitMoveIfChanged(preSignature, postSignature, metadata = {}) {
     committed,
   });
   return committed;
+}
+
+function commitMoveFromSignatures(preSignature, commitConfig) {
+  const {
+    action,
+    from,
+    to,
+    successContext,
+    successMessage,
+  } = commitConfig;
+  const postSignature = getGridSignature(state.grid);
+  const committed = commitMoveIfChanged(preSignature, postSignature, {
+    action,
+    from,
+    to,
+  });
+  if (!committed) {
+    state.animateMoves = false;
+    return false;
+  }
+
+  state.animateMoves = true;
+  state.chainMultiplier = 1;
+  if (spawnCardOrGameOver(successContext)) {
+    statusEl.textContent = successMessage;
+  }
+  return true;
 }
 
 function getSwipeTarget(start, deltaX, deltaY) {
