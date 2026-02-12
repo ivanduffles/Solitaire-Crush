@@ -114,7 +114,7 @@ const gameOverOverlayEl = document.getElementById("gameOverOverlay");
 const playAgainButtonEl = document.getElementById("playAgainButton");
 
 function isInputLocked() {
-  return state.gameOver || !gameOverOverlayEl?.hidden;
+  return state.gameOver || !gameOverOverlayEl?.hidden || autoResolutionActive;
 }
 
 function isDebugGameOverEnabled() {
@@ -137,10 +137,32 @@ function debugUndoLog(message, payload = {}) {
     return;
   }
   console.log(`[undo-debug] ${message}`, payload);
+function isDebugMoveCommitEnabled() {
+  return typeof window !== "undefined" && window.__DEBUG_MOVE_COMMIT;
+}
+
+function debugMoveCommitLog(message, payload = {}) {
+  if (!isDebugMoveCommitEnabled()) {
+    return;
+  }
+  console.log(`[move-commit-debug] ${message}`, payload);
+}
+
+function isDebugFlowEnabled() {
+  return typeof window !== "undefined" && window.__DEBUG_FLOW;
+}
+
+function debugFlowLog(message, payload = {}) {
+  if (!isDebugFlowEnabled()) {
+    return;
+  }
+  console.log(`[flow-debug] ${message}`, payload);
 }
 
 let scoreAnimationActive = false;
 let bombExplosionActive = false;
+let autoResolutionPromise = Promise.resolve();
+let autoResolutionActive = false;
 const DEBUG_NEW_CARD_ENTER = false;
 const MAX_HISTORY = 50;
 const undoStack = [];
@@ -308,6 +330,28 @@ function animateUndoCardsEnterReverseFall(newCardEls = []) {
         window.setTimeout(cleanup, 620);
       }));
       Promise.all(animations).then(resolveAll);
+      requestAnimationFrame(() => {
+        const animations = newCardEls.map((cardEl) => new Promise((resolve) => {
+          cardEl.classList.add("card--entering");
+          cardEl.style.transform = "";
+          cardEl.style.opacity = "1";
+          let settled = false;
+          const cleanup = () => {
+            if (settled) {
+              return;
+            }
+            settled = true;
+            cardEl.classList.remove("card--entering");
+            cardEl.classList.remove("card--pre-enter");
+            cardEl.style.removeProperty("transform");
+            cardEl.style.removeProperty("opacity");
+            resolve();
+          };
+          cardEl.addEventListener("transitionend", cleanup, { once: true });
+          window.setTimeout(cleanup, 620);
+        }));
+        Promise.all(animations).then(resolveAll);
+      });
     });
   });
 }
@@ -1258,7 +1302,7 @@ function handlePointerEnter(event) {
   state.dragState.moved = true;
 }
 
-function handlePointerMove(event) {
+async function handlePointerMove(event) {
   if (scoreAnimationActive || bombExplosionActive || !state.dragState || isInputLocked()) {
     return;
   }
@@ -1304,10 +1348,9 @@ function handlePointerMove(event) {
     state.dragState = null;
     return;
   }
-  handleDragSwap(swipeTarget.row, swipeTarget.col);
+  await handleDragSwap(swipeTarget.row, swipeTarget.col);
   clearDragVisual();
   state.dragState = null;
-  renderBoard();
 }
 
 function clearDragVisual() {
@@ -1349,22 +1392,21 @@ async function handlePointerUp(event) {
   }
 
   if (moved) {
-    handleDragSwap(row, col);
+    await handleDragSwap(row, col);
     clearDragVisual();
     state.dragState = null;
-    renderBoard();
     return;
   }
 
   if (state.swapMode) {
-    handleSwapModeTap(row, col);
+    await handleSwapModeTap(row, col);
     clearDragVisual();
     state.dragState = null;
     return;
   }
 
   if (state.swapperActive) {
-    handleSwapperTap(row, col);
+    await handleSwapperTap(row, col);
     clearDragVisual();
     state.dragState = null;
     return;
@@ -1400,7 +1442,7 @@ async function handlePointerUp(event) {
     if (detectDoubleTap({ row, col }, now)) {
       clearDragVisual();
       state.dragState = null;
-      clearSelectedSequence();
+      await clearSelectedSequence();
       return;
     }
     statusEl.textContent = "Sequence selected. Double tap to clear or tap Clear.";
@@ -1613,7 +1655,7 @@ function endDragSelection(commitSelection) {
   updateSelectionUI();
 }
 
-function handleDragSwap(targetRow, targetCol) {
+async function handleDragSwap(targetRow, targetCol) {
   if (!state.dragState) {
     return;
   }
@@ -1634,15 +1676,84 @@ function handleDragSwap(targetRow, targetCol) {
   pushUndoCheckpoint("drag-swap");
   state.animateMoves = true;
   clearSequenceSelection();
+
+  // Signature-based move commits prevent false positives where a tentative drag
+  // (like pushing into an empty slot above) settles back to the same board.
+  const preSignature = getGridSignature(state.grid);
+
   if (!state.grid[targetRow][targetCol]) {
     moveCardToEmpty(startRow, startCol, targetRow, targetCol);
+    const committed = await commitMoveFromSignatures(preSignature, {
+      action: "move-to-empty",
+      from: { row: startRow, col: startCol },
+      to: { row: targetRow, col: targetCol },
+      successContext: "move-to-empty",
+      successMessage: "Move complete. Card dropped.",
+    });
+    if (!committed) {
+      statusEl.textContent = "Move cancelled.";
+    }
     return;
   }
+
   swapCards(startRow, startCol, targetRow, targetCol);
-  state.chainMultiplier = 1;
-  if (spawnCardOrGameOver("drag-swap")) {
-    statusEl.textContent = "Swap complete. Card dropped.";
+  const committed = await commitMoveFromSignatures(preSignature, {
+    action: "drag-swap",
+    from: { row: startRow, col: startCol },
+    to: { row: targetRow, col: targetCol },
+    successContext: "drag-swap",
+    successMessage: "Swap complete. Card dropped.",
+  });
+  if (!committed) {
+    statusEl.textContent = "Move cancelled.";
   }
+}
+
+function getGridSignature(grid) {
+  return grid
+    .map((row) => row.map((cell) => (cell ? cell.id : ".")).join("|"))
+    .join("/");
+}
+
+function commitMoveIfChanged(preSignature, postSignature, metadata = {}) {
+  const committed = preSignature !== postSignature;
+  debugMoveCommitLog("move commit check", {
+    ...metadata,
+    preSignature,
+    postSignature,
+    signaturesEqual: preSignature === postSignature,
+    committed,
+  });
+  return committed;
+}
+
+async function commitMoveFromSignatures(preSignature, commitConfig) {
+  const {
+    action,
+    from,
+    to,
+    successContext,
+    successMessage,
+  } = commitConfig;
+  const postSignature = getGridSignature(state.grid);
+  const committed = commitMoveIfChanged(preSignature, postSignature, {
+    action,
+    from,
+    to,
+  });
+  if (!committed) {
+    state.animateMoves = false;
+    return false;
+  }
+
+  state.animateMoves = true;
+  state.chainMultiplier = 1;
+  statusEl.textContent = successMessage;
+  await runAutoResolutionFlow({
+    reason: `after-${successContext}`,
+    spawnContext: successContext,
+  });
+  return true;
 }
 
 function getSwipeTarget(start, deltaX, deltaY) {
@@ -1669,10 +1780,6 @@ function moveCardToEmpty(startRow, startCol, targetRow, targetCol) {
   state.grid[targetRow][targetCol] = movingCard;
   state.grid[startRow][startCol] = null;
   shiftColumnDown(startCol, startRow);
-  state.chainMultiplier = 1;
-  if (spawnCardOrGameOver("move-to-empty")) {
-    statusEl.textContent = "Move complete. Card dropped.";
-  }
 }
 
 function handleSequenceTap(row, col) {
@@ -1782,7 +1889,7 @@ function shiftColumnDown(col, startRow) {
   }
 }
 
-function handleSwapperTap(row, col) {
+async function handleSwapperTap(row, col) {
   if (!state.swapperSource) {
     state.swapperActive = false;
     return;
@@ -1793,7 +1900,7 @@ function handleSwapperTap(row, col) {
     state.swapperSource = null;
     clearSequenceSelection();
     statusEl.textContent = "Swapper selection cleared.";
-    renderBoard();
+    await renderBoard();
     return;
   }
   if (!state.grid[row][col]) {
@@ -1822,13 +1929,11 @@ function handleSwapperTap(row, col) {
   state.swapperActive = false;
   state.swapperSource = null;
   state.chainMultiplier = 1;
-  if (spawnCardOrGameOver("swapper")) {
-    statusEl.textContent = "Swapper used. Card dropped.";
-  }
-  renderBoard();
+  statusEl.textContent = "Swapper used. Card dropped.";
+  await runAutoResolutionFlow({ reason: "after-swapper", spawnContext: "swapper" });
 }
 
-function handleSwapModeTap(row, col) {
+async function handleSwapModeTap(row, col) {
   if (!state.grid[row][col]) {
     statusEl.textContent = "Select a card to swap.";
     return;
@@ -1836,14 +1941,14 @@ function handleSwapModeTap(row, col) {
   if (!state.pendingSwap) {
     state.pendingSwap = { row, col };
     statusEl.textContent = "Select the second card to swap.";
-    renderBoard();
+    await renderBoard();
     return;
   }
   const { row: firstRow, col: firstCol } = state.pendingSwap;
   if (firstRow === row && firstCol === col) {
     state.pendingSwap = null;
     statusEl.textContent = "Swap selection cleared.";
-    renderBoard();
+    await renderBoard();
     return;
   }
   pushUndoCheckpoint("free-swap");
@@ -1853,12 +1958,9 @@ function handleSwapModeTap(row, col) {
   state.swapMode = false;
   state.chainMultiplier = 1;
   state.freeSwapCount = Math.max(0, state.freeSwapCount - 1);
-  const spawned = spawnCardOrGameOver("free-swap");
   updateHud();
-  if (spawned) {
-    statusEl.textContent = "Swap used. Card dropped.";
-  }
-  renderBoard();
+  statusEl.textContent = "Swap used. Card dropped.";
+  await runAutoResolutionFlow({ reason: "after-free-swap", spawnContext: "free-swap" });
 }
 
 function getSwipeThreshold(cardEl, deltaX, deltaY) {
@@ -2196,6 +2298,18 @@ function runSequenceValidationDebugChecks() {
   inspectAttempts("reported valid case", [card("2", "♣"), card("2", "♠"), card("A", "♠")]);
 }
 
+function countFloatingViolations(grid) {
+  let violations = 0;
+  for (let row = 0; row < GRID_SIZE - 1; row += 1) {
+    for (let col = 0; col < GRID_SIZE; col += 1) {
+      if (grid[row][col] && grid[row + 1][col] === null) {
+        violations += 1;
+      }
+    }
+  }
+  return violations;
+}
+
 function getEligibleSpawnSlots() {
   const availableRows = [];
   for (let row = GRID_SIZE - 1; row >= 0; row -= 1) {
@@ -2262,6 +2376,77 @@ function spawnCardOrGameOver(context = "drop") {
   return true;
 }
 
+async function settleGravityUntilStable() {
+  let violations = countFloatingViolations(state.grid);
+  let passCount = 0;
+  while (violations > 0 && passCount < GRID_SIZE + 2) {
+    collapseColumns();
+    passCount += 1;
+    violations = countFloatingViolations(state.grid);
+  }
+  if (violations > 0) {
+    collapseColumns();
+    violations = countFloatingViolations(state.grid);
+  }
+  return violations;
+}
+
+async function runAutoResolutionFlow(options = {}) {
+  const {
+    reason = "unknown",
+    prevRectsOverride = null,
+    spawnContext = reason,
+    allowSpawn = true,
+    maxSpawnCount = 1,
+  } = options;
+
+  const runFlow = async () => {
+    autoResolutionActive = true;
+    debugFlowLog("auto resolution start", { reason });
+    try {
+      debugFlowLog("step A start", { reason });
+      let violations = await settleGravityUntilStable();
+      debugFlowLog("step A end", { reason, floatingViolations: violations });
+      if (violations > 0) {
+        debugFlowLog("step A unstable after settle", { reason, floatingViolations: violations });
+        throw new Error(`Gravity failed to stabilize before spawn (${violations} violations)`);
+      }
+
+      debugFlowLog("step B start", { reason });
+      let spawnedCount = 0;
+      if (allowSpawn) {
+        for (let i = 0; i < maxSpawnCount; i += 1) {
+          if (!spawnCardOrGameOver(spawnContext)) {
+            break;
+          }
+          spawnedCount += 1;
+        }
+      }
+      debugFlowLog("step B end", { reason, spawnedCount });
+
+      debugFlowLog("step C start", { reason });
+      violations = await settleGravityUntilStable();
+      debugFlowLog("step C end", { reason, floatingViolations: violations });
+      if (violations > 0) {
+        debugFlowLog("step C unstable after settle", { reason, floatingViolations: violations });
+        throw new Error(`Gravity failed to stabilize after spawn (${violations} violations)`);
+      }
+
+      debugFlowLog("step D start", { reason });
+      await renderBoard({ prevRectsOverride });
+      debugFlowLog("step D end", { reason });
+    } finally {
+      debugFlowLog("step E start", { reason });
+      autoResolutionActive = false;
+      debugFlowLog("step E end", { reason, inputUnlocked: true });
+      debugFlowLog("auto resolution end", { reason });
+    }
+  };
+
+  autoResolutionPromise = autoResolutionPromise.then(runFlow, runFlow);
+  return autoResolutionPromise;
+}
+
 function clearSequenceSelection() {
   state.sequenceSelection = [];
   state.sequenceValid = false;
@@ -2292,19 +2477,15 @@ async function clearSingleCard(row, col, consumesFreeBomb) {
   }
 
   state.grid[row][col] = null;
-  collapseColumns();
   state.chainMultiplier = 1;
   if (consumesFreeBomb) {
     state.freeBombCount = Math.max(0, state.freeBombCount - 1);
     state.bombMode = false;
     state.bombTarget = null;
   }
-  const spawned = spawnCardOrGameOver("bomb-clear");
   updateHud();
-  if (spawned) {
-    statusEl.textContent = "Bomb used. Card cleared.";
-  }
-  renderBoard();
+  statusEl.textContent = "Bomb used. Card cleared.";
+  await runAutoResolutionFlow({ reason: "after-bomb-clear", spawnContext: "bomb-clear" });
 }
 
 async function clearSelectedSequence() {
@@ -2319,7 +2500,7 @@ async function clearSelectedSequence() {
   if (!validation.valid) {
     statusEl.textContent = "Sequence no longer valid.";
     clearSequenceSelection();
-    renderBoard();
+    await renderBoard();
     return;
   }
 
@@ -2335,33 +2516,36 @@ async function clearSelectedSequence() {
   selectedCells.forEach(({ row, col }) => {
     state.grid[row][col] = null;
   });
-  collapseColumns();
-  const spawned = spawnCardOrGameOver("sequence-clear");
   clearSequenceSelection();
   updateHud({ preserveScore: true });
+  statusEl.textContent = "Sequence cleared!";
+
+  // Re-render immediately so cleared source cards are removed from the board
+  // before overlay clones animate, avoiding visible duplicates.
+  await renderBoard();
+
+  const scoreCountPromise = animateScoreCountUp(oldScore, newScore, scoreEl);
+  await playScoreAnimation({ cards: animationCards, ...scoreBreakdown });
+
+  await runAutoResolutionFlow({
+    reason: "after-sequence-clear",
+    spawnContext: "sequence-clear",
   if (spawned) {
     statusEl.textContent = "Sequence cleared!";
   }
   if (!spawned) {
-    await renderBoard({ prevRectsOverride: prevRects });
-    return;
+    return renderBoard({ prevRectsOverride: prevRects });
   }
 
   const scoreAnimationPromise = (async () => {
     await playScoreAnimation({ cards: animationCards, ...scoreBreakdown });
     await animateScoreCountUp(oldScore, newScore, scoreEl);
   })();
-  await renderBoard({
+  return renderBoard({
     prevRectsOverride: prevRects,
-    awaitScorePromise: scoreAnimationPromise,
   });
-  renderBoard();
-  if (!spawned) {
-    return;
-  }
-  await animateCardMoves(prevRects);
-  await playScoreAnimation({ cards: animationCards, ...scoreBreakdown });
-  await animateScoreCountUp(oldScore, newScore, scoreEl);
+
+  await scoreCountPromise;
 }
 
 function collapseColumns() {
@@ -2427,7 +2611,7 @@ function restartGame() {
   init();
 }
 
-function debugFillSpawnSlotsAndTriggerGameOver() {
+async function debugFillSpawnSlotsAndTriggerGameOver() {
   // Dev helper to reproduce the lose condition deterministically.
   for (let row = 0; row < GRID_SIZE; row += 1) {
     for (let col = 0; col < GRID_SIZE; col += 1) {
@@ -2436,8 +2620,8 @@ function debugFillSpawnSlotsAndTriggerGameOver() {
       }
     }
   }
-  renderBoard();
-  spawnCardOrGameOver("debug-fill-all-slots");
+  await renderBoard();
+  await runAutoResolutionFlow({ reason: "debug-fill-all-slots", spawnContext: "debug-fill-all-slots" });
 }
 
 function renderPowerupButtonIcons() {
@@ -2524,12 +2708,12 @@ freeSwapButton.addEventListener("click", () => {
   renderBoard();
 });
 
-clearSequenceButton?.addEventListener("click", () => {
+clearSequenceButton?.addEventListener("click", async () => {
   if (scoreAnimationActive || bombExplosionActive || isInputLocked() || !state.sequenceValid || state.sequenceSelection.length < 3) {
     return;
   }
   state.lastTap = null;
-  clearSelectedSequence();
+  await clearSelectedSequence();
 });
 
 freeBombButton.addEventListener("click", () => {
