@@ -1828,7 +1828,7 @@ function dropCard() {
   if (availableRows.length === 0) {
     statusEl.textContent = "No space for a new card. Game over.";
     state.gameOver = true;
-    return;
+    return false;
   }
 
   const targetRow = availableRows[0];
@@ -1837,6 +1837,7 @@ function dropCard() {
     .filter((col) => col !== null);
   const targetCol = emptyCols[Math.floor(Math.random() * emptyCols.length)];
   state.grid[targetRow][targetCol] = drawCard();
+  return true;
 }
 
 function clearSequenceSelection() {
@@ -1908,10 +1909,17 @@ async function clearSelectedSequence() {
     state.grid[row][col] = null;
   });
   collapseColumns();
-  dropCard();
+  const spawned = dropCard();
   clearSequenceSelection();
   updateHud({ preserveScore: true });
-  statusEl.textContent = "Sequence cleared!";
+  if (spawned) {
+    statusEl.textContent = "Sequence cleared!";
+  }
+  if (!spawned) {
+    await renderBoard({ prevRectsOverride: prevRects });
+    return;
+  }
+
   const scoreAnimationPromise = (async () => {
     await playScoreAnimation({ cards: animationCards, ...scoreBreakdown });
     await animateScoreCountUp(oldScore, newScore, scoreEl);
