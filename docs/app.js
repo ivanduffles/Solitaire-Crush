@@ -111,7 +111,6 @@ let bombExplosionActive = false;
 const DEBUG_NEW_CARD_ENTER = false;
 let previousRenderCardIds = new Set();
 let hasRenderedBoard = false;
-let pendingBoardAnimationPromise = Promise.resolve();
 const SWIPE_THRESHOLD_RATIO = 0.35;
 const LONG_PRESS_MS = 210;
 const LONG_PRESS_MOVE_TOLERANCE_TOUCH = 10;
@@ -709,8 +708,7 @@ function buildJokerCardContent() {
 
 function renderBoard(options = {}) {
   const { prevRectsOverride = null, awaitScorePromise = null } = options;
-  const shouldAnimateMoves = Boolean(prevRectsOverride || state.animateMoves);
-  const prevRects = prevRectsOverride || (shouldAnimateMoves ? getCardRects() : null);
+  const prevRects = prevRectsOverride || (state.animateMoves ? getCardRects() : null);
   const currentCardIds = new Set();
   const newCardEls = [];
   boardEl.innerHTML = "";
@@ -811,7 +809,7 @@ function renderBoard(options = {}) {
     })
     : Promise.resolve();
   const scoreWaitPromise = awaitScorePromise || Promise.resolve();
-  pendingBoardAnimationPromise = Promise.resolve(scoreWaitPromise)
+  const animationSequencePromise = Promise.resolve(scoreWaitPromise)
     .then(() => boardMovePromise)
     .then(() => animateNewCardsEnter(newCardEls));
 
@@ -819,7 +817,7 @@ function renderBoard(options = {}) {
   hasRenderedBoard = true;
   updateClearButtonVisibility();
   state.animateMoves = false;
-  return pendingBoardAnimationPromise;
+  return animationSequencePromise;
 }
 
 function handlePointerDown(event) {
@@ -1565,7 +1563,8 @@ function animateNewCardsEnter(newCardEls = []) {
 
   return new Promise((resolveAll) => {
     requestAnimationFrame(() => {
-      const animations = newCardEls.map(
+      requestAnimationFrame(() => {
+        const animations = newCardEls.map(
         (cardEl) => new Promise((resolve) => {
           cardEl.classList.add("card--entering");
           cardEl.style.transform = "";
@@ -1586,11 +1585,12 @@ function animateNewCardsEnter(newCardEls = []) {
         })
       );
 
-      Promise.all(animations).then(() => {
-        if (DEBUG_NEW_CARD_ENTER) {
-          console.log("[new-card-enter] enter animation end");
-        }
-        resolveAll();
+        Promise.all(animations).then(() => {
+          if (DEBUG_NEW_CARD_ENTER) {
+            console.log("[new-card-enter] enter animation end");
+          }
+          resolveAll();
+        });
       });
     });
   });
@@ -1893,6 +1893,7 @@ async function clearSelectedSequence() {
 
   const selectedCells = [...state.sequenceSelection];
   const animationCards = getSequenceCardSnapshots(selectedCells);
+  const prevRects = getCardRects();
   const oldScore = state.score;
   const scoreBreakdown = applyScore(selectedCells.length, validation.usesWildcard);
   const newScore = state.score;
@@ -1910,7 +1911,7 @@ async function clearSelectedSequence() {
     await animateScoreCountUp(oldScore, newScore, scoreEl);
   })();
   await renderBoard({
-    prevRectsOverride: getCardRects(),
+    prevRectsOverride: prevRects,
     awaitScorePromise: scoreAnimationPromise,
   });
 }
