@@ -219,7 +219,7 @@ function animateUndoRemovedCards({ cardSnapshots = [], reason = "" }) {
 
   const animations = cardSnapshots.map((snapshot) => {
     const { rect, clone } = snapshot;
-    const ghost = clone.cloneNode(true);
+    const ghost = clone;
     ghost.style.position = "fixed";
     ghost.style.left = `${rect.left}px`;
     ghost.style.top = `${rect.top}px`;
@@ -228,6 +228,10 @@ function animateUndoRemovedCards({ cardSnapshots = [], reason = "" }) {
     ghost.style.margin = "0";
     ghost.style.zIndex = "1700";
     ghost.style.pointerEvents = "none";
+    ghost.style.opacity = "1";
+    ghost.style.transform = "translate(0px, 0px) scale(1)";
+    ghost.style.filter = "none";
+    ghost.style.transition = "none";
     layer.appendChild(ghost);
 
     const keyframes = isBombUndo
