@@ -403,12 +403,15 @@ function importSnapshot(snapshot, options = {}) {
     : Promise.resolve();
 
   return Promise.resolve(redoBombPrelude)
-    .then(() => renderHistoryBoard())
     .then(() => {
+      const renderPromise = renderHistoryBoard();
       if (historyTransition === "undo") {
-        return animateUndoRemovedCards({ cardSnapshots: removedCardSnapshots, reason: historyReason });
+        return Promise.all([
+          renderPromise,
+          animateUndoRemovedCards({ cardSnapshots: removedCardSnapshots, reason: historyReason }),
+        ]);
       }
-      return undefined;
+      return renderPromise;
     })
     .then(() => {
       if (
